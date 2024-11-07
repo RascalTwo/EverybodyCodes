@@ -45,7 +45,7 @@ describe('Part 2', () => {
 	})
 })
 
-describe('Part 2', () => {
+describe('Part 3', () => {
 	test('Example', () => {
 		expect(planNeededPotions('xBxAAABCDxCC', 3)).toBe(30)
 	})
