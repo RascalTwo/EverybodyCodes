@@ -1,73 +1,42 @@
 import { describe, expect, test } from 'vitest'
 
-const words = ['THE','OWE','MES','ROD','HER']
+function getRunicCounts(wordsAndInscription: string, searchBackwards: boolean, searchVertically: boolean, wrapHorizontally: boolean) {
+	const searchDirections = [[0, 1]];
+	if (searchBackwards) searchDirections.push([0, -1])
+	if (searchVertically) searchDirections.push([-1, 0], [1, 0])
 
-function solveQuest(input: string, words: string) {
-	let count = 0
-	const allWords = input.split(' ')
-	words = words.split(',')
-	for (const word of words){
-		count += input.split(word).length - 1
-	}
-	return count
-}
+	const words = wordsAndInscription.split('\n\n')[0].split('WORDS:')[1].split(',')
 
-
-function solveQuest2(input: string, words: string) {
-	let count = 0
-	words = words.split(',')
-	for (const word of words.slice()){
-		words.push(word.split('').reverse().join(''))
-	}
-	for (const line of input.split('\n')){
-		const symbolIndexes = new Array(line.length).fill(0)
-		for (let i = 0; i < line.length; i++){
-			for (const word of words){
-				if (line.slice(i, i + word.length) === word){
-					for (let j = 0; j < word.length; j++){
-						symbolIndexes[i + j] = 1
-					}
-				}
-			}
-		}
-		count += symbolIndexes.reduce((a, b) => a + b, 0)
-	}
-	return count
-}
-
-
-function solveQuest3(input: string, words: string) {
-	let count = 0
-	const lines = input.split('\n')
+	const inscription = wordsAndInscription.split('\n\n')[1];
+	const lines = inscription.split('\n')
 	const rowCount = lines.length;
-	const colCount = lines[0].length
-	words = words.split(',')
-	for (const word of words.slice()){
-		words.push(word.split('').reverse().join(''))
-	}
+
+	let wordsFound = 0;
+
 	const world = {}
-	for (let r = 0; r < rowCount; r++){
-		for (let c = 0; c < colCount; c++){
+	for (let r = 0; r < rowCount; r++) {
+		for (let c = 0; c < lines[r].length; c++) {
 			world[r] = world[r] || {}
 			world[r][c] = lines[r][c]
 		}
 	}
+
 	const scales: Record<string, Record<string, number>> = {};
-	for (let r = 0; r < rowCount; r++){
-		for (let c = 0; c < colCount; c++){
+	for (let r = 0; r < rowCount; r++) {
+		for (let c = 0; c < lines[r].length; c++) {
 			scales[r] = scales[r] || {}
 			scales[r][c] = 0
 		}
 	}
 
-	for (let r = 0; r < rowCount; r++){
-		for (let c = 0; c < colCount; c++){
-			for (const word of words){
+	for (let r = 0; r < rowCount; r++) {
+		for (let c = 0; c < lines[r].length; c++) {
+			for (const word of words) {
 				if (world[r][c] !== word[0]) continue;
-				for (const [ro, co] of [[0, 1], [1, 0], [-1, 0], [0, -1]]){
+				for (const [ro, co] of searchDirections) {
 					let failed = false;
 					let coords = [[r, c]]
-					for (let i = 1; i < word.length; i++){
+					for (let i = 1; i < word.length; i++) {
 						let nr = r + (ro * i);
 						if (nr >= rowCount) {
 							failed = true;
@@ -78,16 +47,28 @@ function solveQuest3(input: string, words: string) {
 							break
 						}
 						let nc = c + (co * i);
-						if (nc >= colCount) nc = 0;
-						if (nc < 0) nc = colCount - 1
-						if (world[nr][nc] !== word[i]){
+						if (wrapHorizontally) {
+							if (nc >= lines[nr].length) nc -= lines[nr].length;
+							if (nc < 0) nc += lines[nr].length - 1
+						} else {
+							if (nc >= lines[nr].length) {
+								failed = true;
+								break
+							}
+							if (nc < 0) {
+								failed = true;
+								break
+							}
+						}
+						if (world[nr][nc] !== word[i]) {
 							failed = true;
 							break
 						}
 						coords.push([nr, nc])
 					}
-					if (!failed){
-						for (const [r, c] of coords){
+					if (!failed) {
+						wordsFound++;
+						for (const [r, c] of coords) {
 							scales[r][c] = 1
 						}
 					}
@@ -97,36 +78,54 @@ function solveQuest3(input: string, words: string) {
 	}
 
 	let scaleCount = 0
-	for (const row of Object.values(scales)){
-		for (const slot of Object.values(row)){
-			if (slot) scaleCount++ 
+	for (const row of Object.values(scales)) {
+		for (const slot of Object.values(row)) {
+			if (slot) scaleCount++
 		}
 	}
-	return scaleCount
+	return { symbols: scaleCount, words: wordsFound }
 }
 
+function solvePart1(wordsAndInscription: string) {
+	return getRunicCounts(wordsAndInscription, false, false, false).words
+}
+
+function solvePart2(wordsAndInscription: string) {
+	return getRunicCounts(wordsAndInscription, true, false, false).symbols
+}
+
+function solvePart3(wordsAndInscription: string) {
+	return getRunicCounts(wordsAndInscription, true, true, true).symbols
+}
 
 describe('Part 1', () => {
 	test('Example', () => {
-		expect(solveQuest(`AWAKEN THE POWER ADORNED WITH THE FLAMES BRIGHT IRE`.trim(), 'THE,OWE,MES,ROD,HER')).toBe(4)
+		expect(solvePart1(`WORDS:THE,OWE,MES,ROD,HER
+
+AWAKEN THE POWER ADORNED WITH THE FLAMES BRIGHT IRE`.trim())).toBe(4)
 	})
 
 	test('Notes', () => {
-		expect(solveQuest('LOREM IPSUM DOLOR SIT AMET, CONSECTETUR ADIPISCING ELIT, SED DO EIUSMOD TEMPOR INCIDIDUNT UT LABORE ET DOLORE MAGNA ALIQUA. UT ENIM AD MINIM VENIAM, QUIS NOSTRUD EXERCITATION ULLAMCO LABORIS NISI UT ALIQUIP EX EA COMMODO CONSEQUAT. DUIS AUTE IRURE DOLOR IN REPREHENDERIT IN VOLUPTATE VELIT ESSE CILLUM DOLORE EU FUGIAT NULLA PARIATUR. EXCEPTEUR SINT OCCAECAT CUPIDATAT NON PROIDENT, SUNT IN CULPA QUI OFFICIA DESERUNT MOLLIT ANIM ID EST LABORUM.', 'LOR,LL,SI,OR,AB,RI,NI')).toBe(124567890)
+		expect(solvePart1(`WORDS:LOR,LL,SI,OR,AB,RI,NI
+
+LOREM IPSUM DOLOR SIT AMET, CONSECTETUR ADIPISCING ELIT, SED DO EIUSMOD TEMPOR INCIDIDUNT UT LABORE ET DOLORE MAGNA ALIQUA. UT ENIM AD MINIM VENIAM, QUIS NOSTRUD EXERCITATION ULLAMCO LABORIS NISI UT ALIQUIP EX EA COMMODO CONSEQUAT. DUIS AUTE IRURE DOLOR IN REPREHENDERIT IN VOLUPTATE VELIT ESSE CILLUM DOLORE EU FUGIAT NULLA PARIATUR. EXCEPTEUR SINT OCCAECAT CUPIDATAT NON PROIDENT, SUNT IN CULPA QUI OFFICIA DESERUNT MOLLIT ANIM ID EST LABORUM.`.trim())).toBe(32)
 	})
 })
 
 describe('Part 2', () => {
 	test('Example', () => {
-		expect(solveQuest2(`AWAKEN THE POWE ADORNED WITH THE FLAMES BRIGHT IRE
+		expect(solvePart2(`WORDS:THE,OWE,MES,ROD,HER
+
+AWAKEN THE POWE ADORNED WITH THE FLAMES BRIGHT IRE
 THE FLAME SHIELDED THE HEART OF THE KINGS
 POWE PO WER P OWE R
-THERE IS THE END
-`.trim(), 'THE,OWE,MES,ROD,HER')).toBe(37)
+THERE IS THE END`.trim())).toBe(37)
 	})
 
 	test('Notes', () => {
-		expect(solveQuest2(`MDZHDSHMED
+		expect(solvePart2(`WORDS:H,NYJUEKSEWT,GIICGZIXBT,DBX,IXS,OO,JYBLVMTOXI,JULUIGMMTW,EBOSSOCLZS,V,JEF,ODYK,CBV,IASWWHKAIF,NLSZ,RELWEFHRLX,BOZD,THIE,HQEP,ARB,PEIY,TD,DR,TQGXRWNGSE,XZ,OW,OV,LBFS,WGM,XCZKWJJXVI,VL,E,CKD,WAZ,J,Z,JEB,BP,WOW,AE,LK,ZWTK,WU,PECVCOUNUE,KTO,FXYL,PTFU,AV
+
+MDZHDSHMED
 ZULMIEENNCVTSUOREBPVZMYLVBIKZZIQYYDHSFKE
 SADETWJEBOVNDXHFEXKMVCTQZQEHPF
 NZKTJEASGYLNFDNBYVTTGBOXATUTVDIXYXESUOBFRMOSPCHUQEKYQLPCUOPI
@@ -728,20 +727,23 @@ CWQTRRUCIG
 FZQMKZELTSCFUIGVUWWRKOZWSJONLYMGNFVRPTZH
 SVWAKXJZRNCANDHMHMVAMPLWKDFLNUZAXVLEKNDHVCHRAJOVOZHVZSIDJZDA
 SYFXRAOLNTHXOLQTVBQZGXOGXOSZBGONHJRTIXAVRSJZGNPOJS
-YDTNDFNFZCNCICWRRFGIGDJFEPPYVC`.trim(), 'H,NYJUEKSEWT,GIICGZIXBT,DBX,IXS,OO,JYBLVMTOXI,JULUIGMMTW,EBOSSOCLZS,V,JEF,ODYK,CBV,IASWWHKAIF,NLSZ,RELWEFHRLX,BOZD,THIE,HQEP,ARB,PEIY,TD,DR,TQGXRWNGSE,XZ,OW,OV,LBFS,WGM,XCZKWJJXVI,VL,E,CKD,WAZ,J,Z,JEB,BP,WOW,AE,LK,ZWTK,WU,PECVCOUNUE,KTO,FXYL,PTFU,AV')).toBe(5225)
+YDTNDFNFZCNCICWRRFGIGDJFEPPYVC`.trim())).toBe(5225)
 	})
 })
 
 describe('Part 3', () => {
 	test('Example', () => {
-		expect(solveQuest3(`HELWORLT
+		expect(solvePart3(`WORDS:THE,OWE,MES,ROD,RODEO
+
+HELWORLT
 ENIGWDXL
-TRODEOAL
-`.trim(), 'THE,OWE,MES,ROD,RODEO')).toBe(10)
+TRODEOAL`.trim())).toBe(10)
 	})
 
 	test('Notes', () => {
-		expect(solveQuest3(`XHVZGCUBZVTYHKNPDERRPVKLRBBSLXMWQMIMCDNRVZTOWEEQFAMZVPWVMDKTMUIUUGHMUEEUXWYCJJXUHTBRXJYUMNWJRGKTZYJJAHDSFTSUNKYGPLMHFGMSNFJBDDUPSJTQAKHOGRFIYHILFEAJQUWBYAHRALIDJFDNGGXBLOIIOWVMWRQFKPWUFCVOGNMSPLONHMWB
+		expect(solvePart3(`WORDS:PKCW,KM,E,GDBZ,OLSRQIGCVN,PYT,DNGOETTJJV,EMBV,HSP,FKEX,VYLM,PIJ,NTJI,LOL,FPRWFWYXLY,P,XPHC,BM,ZAGUSOFAZC,UQ,QTV,HBDE,DB,AS,Y,VGT,AYUA,C,PK,MELINMTHDP,MQ,DDP,FJTGBQKTGC,QLTX,KR,PAQB,FLBUHAZWDO,OMAJTYPTWN,AKTMXSBBHB,ZMBI,HQ,VA,X,Z,HVJOUYPWEW,DX,WMP,OESS,G,ZCI,KLV,KEGT,CD,AQDU,RQFXLYDUFJ,LO,JD,JYTAMELTLI,A,OO,PMFHQSLPGG,NI,DQP,YJGH,WX,CFGYQLAUDL,HS,SRIF,JLO,CMWYJZEDBP,LRA,YQX,EQSKRCHKNE,RO,GRZ,VZL,GGFS,JWD,GLWZIHOBLM,SQ,TO,YPUT,TML,CCBYPOALMI,UQN,AQZFAMTDCX,DAVV,MWY,QTGLLHCSZV,CK,I,W,BTJ
+
+XHVZGCUBZVTYHKNPDERRPVKLRBBSLXMWQMIMCDNRVZTOWEEQFAMZVPWVMDKTMUIUUGHMUEEUXWYCJJXUHTBRXJYUMNWJRGKTZYJJAHDSFTSUNKYGPLMHFGMSNFJBDDUPSJTQAKHOGRFIYHILFEAJQUWBYAHRALIDJFDNGGXBLOIIOWVMWRQFKPWUFCVOGNMSPLONHMWB
 ZESIHFHRTZJZIJNKFWWCHUTVNGRZIDJSWPORDFJQOTYDVZVPPHEWJSUSQDNSGHGZUBBYVIROULDTOPYFCIBOPISRCPJDMRHLLLRZNGJZTJGVEVYONEGQUNVVXOHTTNBKUTQLBPHVMYTLISOTSJSQFMJUUIANSYPENAGTAYTWHTDFRAQEPOFNPIPFCJOMIGGOXOLSTQSF
 YWAEJBYVGHDMTXIQUONPGLHKOZTJTKZDBDBFUMCSGLXCMHPRFEFRBIROCGLLAHWSJECDBLOHOIWAZVZVTASEIJKKBORWODSHICOBGTTFZWIELYVTEVXVCAPHXOYEFTMKFJFDRYSFWGHHGWWVIGORAXIVNVAYHGYQNFNJAJXFOTKDFIFKQEZPKHIXNHKRYOHIIIVWAVRE
 QRIRXCXMFZUAAZSAONAFCZOPZGSHJHFJXRDTGWQIUXFEGIGMFGFMZDTYLLGFPBHRVDOAHKUGIAYWHEYTSNYDMAHHGPALJRDTBQAILHKWNJXYNSUKONYFJKGQVGNVFLOSSTOZHPJRAJPQZRRIIIKWIREHPQSUHMKSETRYSHQELLQDBQUMLUEONOBIYBCFIGDFNYDOOIXD
@@ -847,6 +849,6 @@ BEFGXICJAJORPAMBZEZMTYYAZNJPFYSXBKQJODRVSEJTVQWOAFXPQFMRMRCPTIYLPHMSKTRPRBQDLMHL
 ZLNVIYRVGSZVSPJONZAUBHRNONDTBRPCJRKIWYOKCKSBZXQNEYTNYOJNNMHJYXFCAKONPVBCRGTBQXMNWYVTRKMHSHORCGZVCODENXWINMUDBRQRHVIODNLMRVTRNSGDRPAUEWTQZKKETJSGVPZUNIUTHKMTGISJDXJWGCQIXGIGXLZXRBNLIOHGXYLFQWEEDTHPNHBD
 AQBMULGYKCBJEYFSAEZSJEXUCFIDKQISUALXHBIHMEKNOTFZESQGMHUKYQFZRHJMZXITBRBQFDCVMIQZEFYKSXCSZRNZCWJLUGLPDTJTMWJSYWZLBQVFMGCDEAKMMEODJUPCUJTUTJQXVEZVLFCWARPGHXTPAIEWLQVVWKAUJTDMPXYGSUSVKVBGUKPTKFGOTUYDTWEM
 BWOMOZLIKCZCNFDVPOTRKZZDWPAFMJSNHUSOGCRWORDWNDOZOJRGBDMLRJMVSJIWEGFAOTKYMVWUVSQNWBCJLPGPXQFOPZAILWHWXVDODIXJKWNFAIXPGRJIXYMNYKLAVLIEJVHTQRHODFGHIERKYNJZFZVRJKOHJOFRYUNSDFSQRNAZGDHDZJAXDRCIOMGOWJUYNKWW
-HNMPKPJGHCJKREXPOQSRFAFQUHBRGZGNTOQGVQMFJDAKNDRKJDMZAWDUGYHKPYPTKFSUISQEAZYMWCCSLRTUOYPXVKOTGRVLDQAUIZNNLHRKOOVRDKDBSUVCCHONZXOZLXBXTBPTAFALOKRQGKLSEKQHNWTTDZEQBCQYIBWXZWLVQAHMPTBBGEGXMHUQQCXLOFPEUZLO`.trim(), 'PKCW,KM,E,GDBZ,OLSRQIGCVN,PYT,DNGOETTJJV,EMBV,HSP,FKEX,VYLM,PIJ,NTJI,LOL,FPRWFWYXLY,P,XPHC,BM,ZAGUSOFAZC,UQ,QTV,HBDE,DB,AS,Y,VGT,AYUA,C,PK,MELINMTHDP,MQ,DDP,FJTGBQKTGC,QLTX,KR,PAQB,FLBUHAZWDO,OMAJTYPTWN,AKTMXSBBHB,ZMBI,HQ,VA,X,Z,HVJOUYPWEW,DX,WMP,OESS,G,ZCI,KLV,KEGT,CD,AQDU,RQFXLYDUFJ,LO,JD,JYTAMELTLI,A,OO,PMFHQSLPGG,NI,DQP,YJGH,WX,CFGYQLAUDL,HS,SRIF,JLO,CMWYJZEDBP,LRA,YQX,EQSKRCHKNE,RO,GRZ,VZL,GGFS,JWD,GLWZIHOBLM,SQ,TO,YPUT,TML,CCBYPOALMI,UQN,AQZFAMTDCX,DAVV,MWY,QTGLLHCSZV,CK,I,W,BTJ')).toBe(124567890)
+HNMPKPJGHCJKREXPOQSRFAFQUHBRGZGNTOQGVQMFJDAKNDRKJDMZAWDUGYHKPYPTKFSUISQEAZYMWCCSLRTUOYPXVKOTGRVLDQAUIZNNLHRKOOVRDKDBSUVCCHONZXOZLXBXTBPTAFALOKRQGKLSEKQHNWTTDZEQBCQYIBWXZWLVQAHMPTBBGEGXMHUQQCXLOFPEUZLO`.trim())).toBe(12403)
 	})
 })
