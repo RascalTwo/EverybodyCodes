@@ -1,140 +1,60 @@
 import { describe, expect, test } from 'vitest'
 
+function mineArea(map: string, careAboutDiagonals: boolean) {
+	let earthBlocksRemoved = 0;
+	let landsDug = []
+	const world = map.split('\n').map((rawRow, r, rawRows) => [...rawRow].map<number>((l, c) => {
+		const canDigHere = l === '#'
+		if (canDigHere) {
+			earthBlocksRemoved++
+			if ((r > 0 && r < rawRows.length - 1) && (c > 0 && c < rawRow.length - 1)) {
+				landsDug.push({ r, c })
+			}
+		}
+		return canDigHere ? 1 : 0
+	}));
 
-function planNeededPotions(incomingCreatures: string, groupSizes: number, potionsNeededByCreature = {
-	A: 0,
-	B: 1,
-	C: 3,
-	D: 5,
-}) {
-	let blockedMined = 0;
-	const world = incomingCreatures.split('\n').map(s => [...s.replace(/\./g, '0')].map(c => c === '#' ? -1 : +c));
-	const rowCount = world.length;
-	const colCount = world[0].length;
-	for (let r = 0; r < rowCount; r++) {
-		for (let c = 0; c < colCount; c++) {
-			if (world[r][c] === -1) {
-				world[r][c] = 1
-				blockedMined++;
+	function canGoDeeper(r: number, c: number, current: number) {
+		for (const [ro, co] of directions) {
+			const [nr, nc] = [r + ro, c + co]
+			if (world[nr][nc] < current) {
+				return false
 			}
 		}
+		return true;
 	}
-	let prev = 0
-	let current = 1;
-	let next = 2;
-	console.log(world.map(r => r.join('')).join('\n'))
-	while (true) {
-		let startedWith = blockedMined
-		for (let r = 0; r < rowCount; r++) {
-			for (let c = 0; c < colCount; c++) {
-				let canGoDeeper = true;
-				for (const [nr, nc] of [[r + 1, c], [r, c + 1], [r - 1, c], [r, c - 1]]) {
-					if (world[nr]?.[nc] === undefined) {
-						canGoDeeper = false;
-						continue
-					}
-					if (world[nr][nc] < current) {
-						canGoDeeper = false;
-						break
-					}
-				}
-				if (canGoDeeper) {
-					world[r][c] = next;
-					blockedMined++;
-				}
-			}
-		}
-		prev++;
-		current++;
-		next++;
-		console.log()
-		console.log(world.map(r => r.join('')).join('\n'))
-		if (startedWith === blockedMined) {
-			break
-		}
+
+	const directions = [
+		[1, 0], [0, 1], [-1, 0], [0, -1],
+		...(careAboutDiagonals ? [[+1, 1], [1, -1], [-1, 1], [-1, -1]] : [])
+	]
+
+	for (let current = 1; landsDug.length; current++) {
+		const diggingDepth = current + 1
+
+		const landsToDig = landsDug.filter(({ r, c }) => canGoDeeper(r, c, current))
+		landsToDig.forEach(({ r, c }) => world[r][c] = diggingDepth)
+
+		earthBlocksRemoved += landsToDig.length
+
+		landsDug = landsToDig
 	}
-	return blockedMined
+	return earthBlocksRemoved
 }
-
-function planNeededPotionsDiag(incomingCreatures: string, groupSizes: number, potionsNeededByCreature = {
-	A: 0,
-	B: 1,
-	C: 3,
-	D: 5,
-}) {
-	let blockedMined = 0;
-	const world = incomingCreatures.split('\n').map(s => [...s.replace(/\./g, '0')].map(c => c === '#' ? -1 : +c));
-	const rowCount = world.length;
-	const colCount = world[0].length;
-	for (let r = 0; r < rowCount; r++) {
-		for (let c = 0; c < colCount; c++) {
-			if (world[r][c] === -1) {
-				world[r][c] = 1
-				blockedMined++;
-			}
-		}
-	}
-	let prev = 0
-	let current = 1;
-	let next = 2;
-	while (true) {
-		let startedWith = blockedMined
-		for (let r = 0; r < rowCount; r++) {
-			for (let c = 0; c < colCount; c++) {
-				if (world[r][c] !== current) {
-					continue
-				}
-				let canGoDeeper = true;
-				console.log([
-					[r + 1, c], [r, c + 1], [r - 1, c], [r, c - 1],
-					[r + 1, c + 1], [r + 1, c - 1], [r - 1, c + 1], [r - 1, c - 1]
-				])
-				for (const [nr, nc] of [
-					[r + 1, c], [r, c + 1], [r - 1, c], [r, c - 1],
-					[r + 1, c + 1], [r + 1, c - 1], [r - 1, c + 1], [r - 1, c - 1]
-				]) {
-					if (world[nr]?.[nc] === undefined) {
-						canGoDeeper = false;
-						continue
-					}
-					if (world[nr][nc] <= prev) {
-						canGoDeeper = false;
-						break
-					}
-				}
-				if (canGoDeeper) {
-					world[r][c] = next;
-					blockedMined++;
-				}
-			}
-		}
-		prev++;
-		current++;
-		next++;
-		if (startedWith === blockedMined) {
-			break
-		}
-	}
-	return blockedMined
-}
-
-test('throws error when groupSizes is not divisible by incomingCreature count', () => {
-	expect(() => planNeededPotions('ABC', 2)).toThrow()
-})
 
 describe('Part 1', () => {
 	test('Example', () => {
-		expect(planNeededPotions(`..........
+		expect(mineArea(`..........
 ..###.##..
 ...####...
 ..######..
 ..######..
 ...####...
-..........`.trim(), 1)).toBe(35)
+..........`.trim(), false)).toBe(35)
 	})
 
 	test('Notes', () => {
-		expect(planNeededPotions(`..............................
+		expect(mineArea(`..............................
 ..............................
 ..............................
 .............##...............
@@ -147,17 +67,13 @@ describe('Part 1', () => {
 .............#.###............
 ...............#..............
 ..............................
-..............................`.trim(), 1)).toBe(127)
+..............................`.trim(), false)).toBe(127)
 	})
 })
 
 describe('Part 2', () => {
-	test('Example', () => {
-		expect(planNeededPotions('AxBCDDCAxD', 2)).toBe(28)
-	})
-
 	test('Notes', () => {
-		expect(planNeededPotions(`......................................................................
+		expect(mineArea(`......................................................................
 ......................................................................
 ......................................................................
 ......................................................................
@@ -191,23 +107,23 @@ describe('Part 2', () => {
 ...................................###..##............................
 ...................................##...#.............................
 ...................................#..................................
-......................................................................`.trim(), 2)).toBe(2771)
+......................................................................`.trim(), false)).toBe(2771)
 	})
 })
 
 describe('Part 3', () => {
 	test('Example', () => {
-		expect(planNeededPotionsDiag(`..........
+		expect(mineArea(`..........
 ..###.##..
 ...####...
 ..######..
 ..######..
 ...####...
-..........`.trim(), 3)).toBe(29)
+..........`.trim(), true)).toBe(29)
 	})
 
 	test('Notes', () => {
-		expect(planNeededPotionsDiag(`
+		expect(mineArea(`
 #####################..............................................................#.......................................#..################
 #.###################.................................................#..........###.....................................#.#################.#
 #####################.#...........................................#..##.........###....................................#######################
@@ -259,6 +175,6 @@ describe('Part 3', () => {
 ################...........................................##....##########...........................................########################
 ################...............................................##########.#...........................................########################
 #.###############..............................................###########............................................######################.#
-###############..................................................#########...............................................#####################`.trim(), 3)).toBe(10178)
+###############..................................................#########...............................................#####################`.trim(), true)).toBe(10178)
 	})
 })
