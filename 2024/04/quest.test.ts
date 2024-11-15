@@ -1,62 +1,65 @@
 import { describe, expect, test } from 'vitest'
 
-
-function solveQuest(notes: string) {
-	const nails = notes.split('\n').map(Number)
-	const smallest = Math.min(...nails)
-	let total = 0
-	for (const n of nails) {
-		const diff = n - smallest
-		total += diff
+function calculateLeastStrikesToLevelAllNails(target: number, nails: number[], leastStrikesSoFar: number, minimizeTargetIfPossible: boolean) {
+	let strikes = 0
+	for (let i = 0; i < nails.length; i++) {
+		const n = nails[i];
+		if (minimizeTargetIfPossible && n < target) {
+			const newDiff = Math.abs(target - n);
+			strikes += newDiff * i
+			target = n;
+		}
+		const diff = Math.abs(n - target)
+		strikes += diff
+		if (strikes >= leastStrikesSoFar) return leastStrikesSoFar
 	}
-	return total
+	return strikes
 }
 
-function solveQuestEff(notes: string) {
-	const nails = notes.split('\n').map(Number)
-	let smallest = nails[0]
-	let total = 0
-	for (let i = 1; i < nails.length; i++) {
-		const n = nails[i];
-		if (n < smallest) {
-			const newDiff = smallest - n;
-			total += newDiff * i
-			smallest = n;
-		}
-		const diff = n - smallest
-		total += diff
+const parseNails = (notes: string) => notes.split('\n').map(Number)
+
+function solveQuest1And2(notes: string) {
+	const nails = parseNails(notes);
+	return calculateLeastStrikesToLevelAllNails(nails[0], nails, Number.MAX_SAFE_INTEGER, true)
+}
+
+function calculateNumberAverageMinimumMaximum(numbers: number[]) {
+	let average = 0;
+	let min = Number.MAX_SAFE_INTEGER;
+	let max = Number.MIN_SAFE_INTEGER;
+	for (const number of numbers) {
+		average += number;
+		if (number < min) min = number;
+		if (number > max) max = number
 	}
-	return total
+	return [Math.round(average / numbers.length), min, max]
 }
 
 function solveQuest3(notes: string) {
-	const nails = notes.split('\n').map(Number)
-	//const avg = Math.floor(nails.reduce((a, b) => a + b, 0) / nails.length);
-	const max = Math.max(...nails)
-	console.log(Math.min(...nails), max);
-	let best = Number.MAX_SAFE_INTEGER
-	for (let i = Math.min(...nails); i <= max; i++) {
-		let total = 0
-		for (const n of nails) {
-			const diff = Math.abs(n - i)
-			total += diff
+	const nails = parseNails(notes);
+
+	const [average, shortestNail, tallestNail] = calculateNumberAverageMinimumMaximum(nails);
+
+	let leastStrikes = Number.MAX_SAFE_INTEGER
+	const maxOffset = Math.max(average - shortestNail, tallestNail - average) + 1
+	for (let o = 0; o <= maxOffset; o++) {
+		for (const targetHeight of [average - o, average + o]) {
+			leastStrikes = calculateLeastStrikesToLevelAllNails(targetHeight, nails, leastStrikes, false);
 		}
-		if (total < best) best = total
 	}
-	console.log(best)
-	return best
+	return leastStrikes
 }
 
 describe('Part 1', () => {
 	test('Example', () => {
-		expect(solveQuest(`3
+		expect(solveQuest1And2(`3
 4
 7
 8`.trim())).toBe(10)
 	})
 
 	test('Example 2', () => {
-		expect(solveQuestEff(`4
+		expect(solveQuest1And2(`4
 3
 7
 8`.trim())).toBe(10)
@@ -64,7 +67,7 @@ describe('Part 1', () => {
 
 
 	test('Notes', () => {
-		expect(solveQuestEff(`11
+		expect(solveQuest1And2(`11
 18
 16
 7
@@ -80,7 +83,7 @@ describe('Part 1', () => {
 
 describe('Part 2', () => {
 	test('Notes', () => {
-		expect(solveQuestEff(`5243
+		expect(solveQuest1And2(`5243
 5477
 1386
 3062
