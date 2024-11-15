@@ -1,226 +1,76 @@
 import { describe, expect, test } from 'vitest'
 
-
-function solveQuest(notes: string) {
-	const lines = notes.split('\n')
-	const rows = [];
-	for (const line of lines) {
-		const values = line.split(' ');
-		for (let i = 0; i < values.length; i++) {
-			while (!rows[i]) { rows.push([]) }
-			rows[i].push(+values[i])
-		}
+function forEachDanceRound(notes: string, callback: (result: number, round: number, columns) => undefined | number) {
+	const columns = parseDancerColumns(notes)
+	for (let round = 1; true; round++) {
+		const returnValue = callback(danceRound(columns, round), round, columns)
+		if (returnValue !== undefined) return returnValue
 	}
+}
+
+
+function parseDancerColumns(notes: string) {
+	const lines = notes.split('\n')
+	const digitCount = lines[0].match(/\d+/)[0].length
+
 	const columns = []
-	for (let r = 0; r < rows.length; r++) {
+	for (let c = 0; c < lines[0].length; c += 2 + digitCount - 1) {
 		const column = []
-		for (let c = 0; c < rows[r].length; c++) {
-			column.push(rows[r][c])
+		for (let r = 0; r < lines.length; r++) {
+			column.push(+lines[r].slice(c, c + digitCount))
 		}
 		columns.push(column)
 	}
 
-	const results = []
+	return columns
+}
 
-	for (let round = 1; round <= 10; round++) {
-		const columnIndex = (round - 1) % columns.length
-		//console.log(columnIndex)
-		const number = columns[columnIndex].splice(0, 1)[0];
-		const nextColumn = columns[(columnIndex + 1) % columns.length]
-		let side = 'left';
-		let rowV = 1
-		let row = 0
-		let clap = 1
-		while (clap !== number) {
-			clap++;
-			if (columns[row + rowV] === undefined) {
-				rowV *= -1
-				side = side === 'left' ? 'right' : 'left'
-			} else {
-				row += rowV
-			}
+function danceRound(columns: number[][], round: number) {
+	const columnIndex = (round - 1) % columns.length
+	const number = columns[columnIndex].splice(0, 1)[0];
+	const nextColumn = columns[(columnIndex + 1) % columns.length]
+
+	let row = 0
+	let rowDir = 1
+	for (let clap = 1; clap !== number; clap++) {
+		if (nextColumn[row + rowDir]) {
+			row += rowDir
+		} else {
+			rowDir *= -1
 		}
-		//console.log({ row, side, clap })
-		//console.log(nextColumn.join('\n'))
-		//console.log('added', number)
-		nextColumn.splice(row + (side === 'left' ? 0 : 1), 0, number)
-		//console.log(nextColumn.join('\n'))
-		//console.log()
-		results.push(columns.map(c => c[0]).join(''))
 	}
-	//console.log(results)
-	return +results.at(-1)
+	nextColumn.splice(row + (rowDir === 1 ? 0 : 1), 0, number)
+
+	return +columns.map(c => c[0]).join('')
+}
+
+function solveQuest(notes: string) {
+	return forEachDanceRound(notes, (result, round) => round === 10 ? result : undefined)
 }
 
 function solveQuest2(notes: string) {
-	const lines = notes.split('\n')
-	const rows = [];
-	for (const line of lines) {
-		const values = line.split(' ');
-		for (let i = 0; i < values.length; i++) {
-			while (!rows[i]) { rows.push([]) }
-			rows[i].push(+values[i])
-		}
-	}
-	const columns = []
-	for (let r = 0; r < rows.length; r++) {
-		const column = []
-		for (let c = 0; c < rows[r].length; c++) {
-			column.push(rows[r][c])
-		}
-		columns.push(column)
-	}
-
-	const resultCounts = {};
-
-	for (let round = 1; true; round++) {
-		const columnIndex = (round - 1) % columns.length
-		//console.log(columnIndex)
-		const number = columns[columnIndex].splice(0, 1)[0];
-		const nextColumn = columns[(columnIndex + 1) % columns.length]
-		let side = 'left';
-		let rowV = 1
-		let row = 0
-		let clap = 1
-		while (clap !== number) {
-			clap++;
-			if (nextColumn[row + rowV] === undefined) {
-				rowV *= -1
-				//console.log(side)
-				side = side === 'left' ? 'right' : 'left'
-				//console.log(side)
-			} else {
-				row += rowV
-			}
-		}
-		//console.log({ row, side, clap })
-		//console.log(nextColumn.join('\n'))
-		//console.log('added', number)
-		nextColumn.splice(row + (side === 'left' ? 0 : 1), 0, number)
-		//console.log(nextColumn.join('\n'))
-		//console.log()
-		const result = +columns.map(c => c[0]).join('')
+	const resultCounts = {}
+	return forEachDanceRound(notes, (result, round) => {
 		resultCounts[result] = (resultCounts[result] ?? 0) + 1
-		//console.log(columns)
-		//console.log(result)
-		//if (round <= 10) console.log(resultCounts, result, round)
-		//if (round === 10) break;
 		if (resultCounts[result] === 2024) {
-			//console.log(resultCounts, result, round)
 			return result * round
 		}
-	}
-}
-
-function solveQuest3_not(notes: string) {
-	const lines = notes.split('\n')
-	const rows = [];
-	for (const line of lines) {
-		const values = line.split(' ');
-		for (let i = 0; i < values.length; i++) {
-			while (!rows[i]) { rows.push([]) }
-			rows[i].push(+values[i])
-		}
-	}
-	const columns = []
-	for (let r = 0; r < rows.length; r++) {
-		const column = []
-		for (let c = 0; c < rows[r].length; c++) {
-			column.push(rows[r][c])
-		}
-		columns.push(column)
-	}
-
-	const resultCounts = {};
-
-	for (let round = 1; true; round++) {
-		const columnIndex = (round - 1) % columns.length
-		//console.log(columnIndex)
-		const number = columns[columnIndex].splice(0, 1)[0];
-		const nextColumn = columns[(columnIndex + 1) % columns.length]
-		let side = 'left';
-		let rowV = 1
-		let row = 0
-		let clap = 1
-		while (clap !== number) {
-			clap++;
-			if (nextColumn[row + rowV] === undefined) {
-				rowV *= -1
-				//console.log(side)
-				side = side === 'left' ? 'right' : 'left'
-				//console.log(side)
-			} else {
-				row += rowV
-			}
-		}
-		//console.log({ row, side, clap })
-		//console.log(nextColumn.join('\n'))
-		//console.log('added', number)
-		nextColumn.splice(row + (side === 'left' ? 0 : 1), 0, number)
-		//console.log(nextColumn.join('\n'))
-		//console.log()
-		const result = +columns.map(c => c[0]).join('')
-		resultCounts[result] = (resultCounts[result] ?? 0) + 1
-		//console.log(columns)
-		//console.log(result)
-		//if (round <= 10) console.log(resultCounts, result, round)
-		//if (round === 10) break;
-		if (resultCounts[result] === 2024) {
-			//console.log(resultCounts, result, round)
-			return result * round
-		}
-	}
+	})
 }
 
 function solveQuest3(notes: string) {
-	const lines = notes.split('\n')
-	const rows = [];
-	for (const line of lines) {
-		const values = line.split(' ');
-		for (let i = 0; i < values.length; i++) {
-			while (!rows[i]) { rows.push([]) }
-			rows[i].push(+values[i])
-		}
-	}
-	const columns = []
-	for (let r = 0; r < rows.length; r++) {
-		const column = []
-		for (let c = 0; c < rows[r].length; c++) {
-			column.push(rows[r][c])
-		}
-		columns.push(column)
-	}
+	let highestResult = Number.MIN_SAFE_INTEGER
+	const seenStates = new Set();
+	return forEachDanceRound(notes, (result, _, columns) => {
+		highestResult = Math.max(highestResult, result)
 
-	let bigR = Number.MIN_SAFE_INTEGER
-	let lastFound = Date.now()
-	for (let round = 1; true; round++) {
-		const columnIndex = (round - 1) % columns.length
-		const number = columns[columnIndex].splice(0, 1)[0];
-		const nextColumn = columns[(columnIndex + 1) % columns.length]
-		let side = 'left';
-		let rowV = 1
-		let row = 0
-		let clap = 1
-		while (clap !== number) {
-			clap++;
-			if (nextColumn[row + rowV] === undefined) {
-				rowV *= -1
-				side = side === 'left' ? 'right' : 'left'
-			} else {
-				row += rowV
-			}
+		const currentState = JSON.stringify(columns)
+		if (!seenStates.has(currentState)) {
+			seenStates.add(currentState)
+		} else {
+			return highestResult
 		}
-		nextColumn.splice(row + (side === 'left' ? 0 : 1), 0, number)
-		const result = +columns.map(c => c[0]).join('')
-		if (result > bigR) {
-			bigR = result;
-			lastFound = Date.now()
-			console.log(bigR)
-		}
-		//if (round % 100000 === 0) console.log(bigR)
-		if (Date.now() - lastFound > 10 * 1000) break
-	}
-	return bigR
+	})
 }
 
 describe('Part 1', () => {
