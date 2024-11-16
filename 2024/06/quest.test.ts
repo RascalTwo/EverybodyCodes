@@ -1,94 +1,47 @@
 import { describe, expect, test } from 'vitest'
 
 
-function solveQuest(notes: string) {
+function solveQuest(notes: string, shortenBranchNames: boolean) {
+	const ignoredNodes = ['ANT', 'BUG']
 	const graph = {};
 	for (const line of notes.split('\n')) {
-		const [origin, rawNexts] = line.split(':')
-		const nexts = rawNexts.split(',')
+		const [origin, rawDestinations] = line.split(':')
+		if (ignoredNodes.includes(origin)) continue;
+
+		const destinations = rawDestinations.split(',').filter(dest => !ignoredNodes.includes(dest))
+		if (!destinations.length) continue
+
 		if (!graph[origin]) graph[origin] = []
-		for (const next of nexts) {
-			graph[origin].push(next)
-		}
+		graph[origin].push(...destinations)
 	}
 
-	const foundPaths: string[][] = []
-	const paths = [{ path: ['RR'] }];
-	while (paths.length) {
-		const path = paths.pop();
-		const current = path.path.at(-1)!
-		if (current === '@') {
-			foundPaths.push(path.path)
-		}
-		for (const next of graph[current] ?? []) {
-			paths.push({ path: [...path.path, next] })
-		}
-	}
-	const pathsByLength = {};
-	for (const path of foundPaths) {
-		const length = path.length;
-		if (!pathsByLength[length]) pathsByLength[length] = [];
-		pathsByLength[length].push(path)
-	}
-	let unique = []
-	for (const length in pathsByLength) {
-		if (pathsByLength[length].length === 1) {
-			unique = pathsByLength[length][0]
-		}
-	}
-	return unique.join('')
-}
-function solveQuest2(notes: string) {
-	const graph = {};
-	for (const line of notes.split('\n')) {
-		const [origin, rawNexts] = line.split(':')
-		const nexts = rawNexts.split(',')
-		if (!graph[origin]) graph[origin] = []
-		for (const next of nexts) {
-			graph[origin].push(next)
-		}
-	}
-	const foundPaths: string[][] = []
-	function recur(path: string[]) {
-		const current = path.at(-1)!
-		if (current === 'ANT' || current == 'BUG') return
-		if (current === '@') {
-			return foundPaths.push(path)
-		}
-		for (const next of graph[current] ?? []) {
-			recur([...path, next])
-		}
-	}
-	recur(['RR'])
-	/*
-	const paths = [{ path: ['RR'] }];
-	while (paths.length) {
-		const path = paths.pop();
-		const current = path.path.at(-1)!
-		if (current === '@') {
-			foundPaths.push(path.path)
-		}
-		for (const next of graph[current] ?? []) {
-			paths.push({ path: [...path.path, next] })
-		}
-	}*/
-	const pathsByLength = {};
-	for (const path of foundPaths) {
-		const length = path.length;
-		if (!pathsByLength[length]) pathsByLength[length] = [];
-		pathsByLength[length].push(path)
-	}
-	let unique = []
-	for (const length in pathsByLength) {
-		if (pathsByLength[length].length === 1) {
-			unique = pathsByLength[length][0]
-		}
-	}
-	return returnPathForPart2(unique);
-}
 
-function returnPathForPart2(path: string[]) {
-	return path.map(b => b[0]).join('')
+	const duplicateLengths = new Set()
+	const firstPathsByLength: Record<number, string[]> = {}
+	const paths = [['RR']];
+	while (paths.length) {
+		const path = paths.pop();
+		for (const destination of graph[path.at(-1)] ?? []) {
+			if (destination !== '@') {
+				paths.push([...path, destination])
+				continue
+			}
+
+			const distanceToFruit = path.length + 1
+			if (duplicateLengths.has(distanceToFruit)) {
+				continue
+			}
+
+			if (distanceToFruit in firstPathsByLength) {
+				duplicateLengths.add(distanceToFruit)
+				delete firstPathsByLength[distanceToFruit]
+			} else {
+				firstPathsByLength[distanceToFruit] = [...path, destination]
+			}
+		}
+	}
+	const unique = Object.values(firstPathsByLength)[0]
+	return (shortenBranchNames ? unique.map(b => b[0]) : unique).join('')
 }
 
 describe('Part 1', () => {
@@ -101,7 +54,7 @@ D:@
 E:@
 F:@
 G:@
-H:@`)).toBe('RRB@')
+H:@`, false)).toBe('RRB@')
 	})
 
 	test('Notes', () => {
@@ -137,17 +90,13 @@ DT:VQ
 TH:VL
 PC:BZ
 NH:NN
-WK:KT`)).toBe('RRPCBZSTVVTT@')
+WK:KT`, false)).toBe('RRPCBZSTVVTT@')
 	})
-})
-
-test('returnPathForPart2', () => {
-	expect(returnPathForPart2('RR,ABAB,CDCD,EFEF,ROLO,@'.split(','))).toBe('RACER@')
 })
 
 describe('Part 2', () => {
 	test('Example', () => {
-		expect(solveQuest2(`RR:A,B,C
+		expect(solveQuest(`RR:A,B,C
 A:D,E
 B:F,@
 C:G,H
@@ -155,11 +104,11 @@ D:@
 E:@
 F:@
 G:@
-H:@`)).toBe('RB@')
+H:@`, true)).toBe('RB@')
 	})
 
 	test('Notes', () => {
-		expect(solveQuest2(`SHNN:KBTQ,BQBL,SNZX,VLZR
+		expect(solveQuest(`SHNN:KBTQ,BQBL,SNZX,VLZR
 SLCW:CBVF,ZWJN,ZMWG,HJHC
 WKHG:FXVX,DQCL,KJZF,NWDX
 RNTS:GFGD,XPXK,WGBR
@@ -751,13 +700,13 @@ LRRN:NSHH,JGHX,ZQCT
 RKSS:HCTM,TFVX,CMSL,CVJV
 ZKXG:SFTJ,FJCQ,HCGF,SRXQ
 DCJR:KLJS,VZCR,ZBWH
-RXNB:SXVB,KXTZ,KTBZ,LQVJ`)).toBe('RFMXHWVXSH@')
+RXNB:SXVB,KXTZ,KTBZ,LQVJ`, true)).toBe('RFMXHWVXSH@')
 	})
 })
 
 describe('Part 3', () => {
 	test('Notes', () => {
-		expect(solveQuest2(`DGMP:GQZK,LSMP,WBDB,SRVH
+		expect(solveQuest(`DGMP:GQZK,LSMP,WBDB,SRVH
 VFJL:RRGW,GTLH,SZQL,SVPZ
 HMRB:ZJJT,RBMM,MMQD,QVMX
 XZLM:GMTQ,QHRD,NFJQ,WLGC
@@ -4232,6 +4181,6 @@ QGDQ:BLSK,HDLM,CNZP,XFKK
 FTFV:QZDJ,STFC,ZVQM,FKSP
 RCJF:ZDJL,QLZP,FCRZ,BMXD
 TNXK:RHGZ,KQWD,BDHV
-CZNZ:QVWG,ZPSF,TFBL,FXVM`)).toBe('RCFVTSRFBZLB@')
+CZNZ:QVWG,ZPSF,TFBL,FXVM`, true)).toBe('RCFVTSRFBZLB@')
 	})
 })
