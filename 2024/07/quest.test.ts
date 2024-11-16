@@ -1,83 +1,44 @@
 import { describe, expect, test } from 'vitest'
 
+type Action = '-' | '=' | '+'
 
-function solveQuest(notes: string) {
-	const gained = {}
-	for (const line of notes.split('\n')) {
-		const [node, rawChanges] = line.split(':')
-		const changes = rawChanges.split(',').map(c => {
-			return {
-				'+': 1,
-				'-': -1,
-				'=': 0
-			}[c]
-		})
-		let total = 0
-		let value = 10;
-		for (let s = 0; s < 10; s++) {
-			const changeI = s % changes.length
-			const change = changes[changeI]
-			value += change
-			total += value
-		}
-		gained[node] = total
-		console.log({ node, total })
+const actionToChange = (action: '-' | '=' | '+') => {
+	switch (action) {
+		case '-': return -1
+		case '=': return 0
+		case '+': return 1
 	}
-	return Object.entries(gained).sort((a, b) => b[1] - a[1]).map(([node]) => node).join('')
 }
 
-function solveQuest2(notes: string, rawTrack: string) {
-	let track = [];
-	track.push(...rawTrack.split('\n')[0].slice(1));
-	for (let r = 1; r < rawTrack.split('\n').length; r++) {
-		track.push(rawTrack.split('\n')[r].slice(-1)[0])
-	}
-	track.push(...[...rawTrack.split('\n').at(-1).slice(0, -1)].reverse())
-	for (let r = rawTrack.split('\n').length - 2; r > 0; r--) {
-		track.push(rawTrack.split('\n')[r][0])
-	}
-	track.push('=')
-	track = track.map(c => {
-		return {
-			'+': 1,
-			'-': -1,
-			'=': 0
-		}[c]
+function parseChariots(notes: string) {
+	return notes.split('\n').map(line => {
+		const [id, rawPlan] = line.split(':')
+		const plan = (rawPlan.split(',') as Action[]).map(actionToChange)
+		return { id, plan }
 	})
-	const gained = {}
-	for (const line of notes.split('\n')) {
-		const [node, rawChanges] = line.split(':')
-		const changes = rawChanges.split(',').map(c => {
-			return {
-				'+': 1,
-				'-': -1,
-				'=': 0
-			}[c]
-		})
-		let total = 0
-		let value = 10;
-		let changeI = 0
-		//changes //?
-		for (let lap = 0; lap < 10; lap++) {
-			for (let s = 0; s < track.length; s++) {
-				//const changeI = s % changes.length
-				let change = changes[changeI]
-				changeI++
-				if (changeI > changes.length - 1) changeI = 0
-				//console.log(node, changeI)
-				const trackChange = track[s];
-				if (trackChange) {
-					change = trackChange;
-				}
-				//if (lap === 0) console.log(node, change)
-				value += change
-				total += value
+}
+
+function raceChariots(track: number[], chariots: ReturnType<typeof parseChariots>, lapCount: number) {
+	const results: Record<string, number> = {}
+	for (const { id, plan } of chariots) {
+		let totalEssenceGathered = 0
+		let power = 10;
+		let step = 0
+		for (let _ = 0; _ < lapCount; _++) {
+			for (const segmentChange of track) {
+				power += segmentChange || plan[step]
+				totalEssenceGathered += power
+
+				step = (step + 1) % plan.length
 			}
 		}
-		gained[node] = total
+		results[id] = totalEssenceGathered
 	}
-	//console.log(gained)
-	return Object.entries(gained).sort((a, b) => b[1] - a[1]).map(([node]) => node).join('')
+	return results
+}
+
+function generateRankings(results: Record<string, number>) {
+	return Object.entries(results).sort((a, b) => b[1] - a[1]).map(([id]) => id).join('')
 }
 
 const permutator = (inputArr) => {
@@ -102,131 +63,61 @@ const permutator = (inputArr) => {
 
 
 function generateValidPlans() {
-	//const pool = { '+': 5, '-': 3, '=': 3 }
 	return permutator('+++++---==='.split('')) as Set<string>
 }
 
-function solveQuest3(notes: string, rawTrack: string) {
-	let track = parseTrack(rawTrack).slice(1)
-	track = track.map(c => {
-		return {
-			'+': 1,
-			'-': -1,
-			'=': 0,
-			'S': 0
-		}[c]
-	})
-
-
-	const gained = {}
-	for (const line of notes.split('\n')) {
-		const [node, rawChanges] = line.split(':')
-		const changes = rawChanges.split(',').map(c => {
-			return {
-				'+': 1,
-				'-': -1,
-				'=': 0
-			}[c]
-		})
-		let total = 0
-		let value = 10;
-		let changeI = 0
-		for (let lap = 0; lap < 2024; lap++) {
-			for (let s = 0; s < track.length; s++) {
-				let change = changes[changeI]
-				changeI++
-				if (changeI > changes.length - 1) changeI = 0
-				const trackChange = track[s];
-				if (trackChange) {
-					change = trackChange;
-				}
-				value += change
-				total += value
-			}
-		}
-		gained[node] = total
-	}
-
-	const toBeat = Object.values(gained)[0] as number
-
-	console.log({ toBeat })
-
-	let gt = 0
-	let lt = 0
-	let e = 0
-	for (const rawChanges of generateValidPlans()) {
-		//for (const rawChanges of ['--+=+-+=+=+']) {
-		const changes = rawChanges.split('').map(c => {
-			return {
-				'+': 1,
-				'-': -1,
-				'=': 0
-			}[c]
-		})
-		let total = 0
-		let value = 10;
-		let changeI = 0
-		for (let lap = 0; lap < 2024; lap++) {
-			for (let s = 0; s < track.length; s++) {
-				let change = changes[changeI % changes.length]
-				changeI++
-				const trackChange = track[s];
-				if (trackChange) {
-					change = trackChange;
-				}
-				value += change
-				total += value
-			}
-		}
-		//console.log({ rawChanges, changes, total, toBeat })
-		gained[rawChanges] = total
-		if (total > toBeat) {
-			gt++
-		} else if (total < toBeat) {
-			lt++
-		} else {
-			e++
-		}
-	}
-	console.log({ gt, lt, e })
-	return gt;
-}
-
-
 function parseTrack(rawTrack: string) {
 	const world = rawTrack.split('\n').map(l => [...l])
-	const path = [{ r: 0, c: 0, s: 'S' }, { r: 0, c: 1, s: world[0][1] }]
-	while (path.at(-1).s !== 'S') {
-		const { r, c, s } = path.at(-1)!;
-		//console.log({ r, c, s })
+	const path = [{ r: 0, c: 0, char: 'S' }, { r: 0, c: 1, char: world[0][1] }]
+	while (path.at(-1).char !== 'S') {
+		const { r, c } = path.at(-1);
 		for (const [ro, co] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
 			const [nr, nc] = [r + ro, c + co]
-			const prev = path.at(-2)!;
+
+			const prev = path.at(-2);
 			if (prev.r === nr && prev.c === nc) continue
+
 			const char = world[nr]?.[nc]
 			if (!char || char === ' ') continue
-			//console.log({ nr, nc })
-			path.push({ r: nr, c: nc, s: char })
+
+			path.push({ r: nr, c: nc, char })
 			break
 		}
 	}
-	/*
-	async function visPath() {
-		for (let i = 0; i < path.length; i++) {
-			const before = path.slice(0, i)
-			for (const { r, c } of before) {
-				world[r][c] = '█'
-			}
-			console.clear()
-			console.log(world.map(l => l.join('')).join('\n'))
-			await new Promise(r => setTimeout(r, 25))
-		}
+
+	return path.slice(1).map(segment => actionToChange(segment.char as Action))
+}
+
+function solveQuest(notes: string) {
+	const track = Array.from({ length: 10 }).fill(0) as number[];
+	const chariots = parseChariots(notes);
+	const results = raceChariots(track, chariots, 1)
+	return generateRankings(results);
+}
+
+function solveQuest2(notes: string, rawTrack: string) {
+	const track = parseTrack(rawTrack)
+	const chariots = parseChariots(notes)
+	const results = raceChariots(track, chariots, 10)
+	return generateRankings(results)
+}
+
+function solveQuest3(notes: string, rawTrack: string) {
+	const track = parseTrack(rawTrack)
+	const toBeatChariot = parseChariots(notes)[0];
+	const toBeat = Object.values(raceChariots(track, [toBeatChariot], 2024))[0]
+
+	let betterPlanCount = 0
+	for (const rawPlan of generateValidPlans()) {
+		const chariot = { id: '0', plan: ([...rawPlan] as Action[]).map(actionToChange) }
+		const result = Object.values(raceChariots(track, [chariot], 2024))[0];
+		if (result > toBeat) betterPlanCount++
 	}
 
-	visPath()*/
-
-	return path.map(p => p.s)
+	return betterPlanCount
 }
+
+
 describe('Part 1', () => {
 	test('Example', () => {
 		expect(solveQuest(`A:+,-,=,=
