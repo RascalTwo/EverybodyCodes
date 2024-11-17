@@ -1,126 +1,60 @@
 import { describe, expect, test } from 'vitest'
 
-const denoms = [1, 3, 5, 10].reverse()
-function solveQuest(notes: string) {
-	const brightnesses = notes.split('\n').map(Number);
-	let totalUsed = 0
-	for (const b of brightnesses) {
-		let current = 0;
-		let used = []
-		while (current !== b) {
-			const remaining = b - current
-			for (const d of denoms) {
-				if (d <= remaining) {
-					used.push(d)
-					current += d
-					break
-				}
-			}
-		}
-		totalUsed += used.length
-	}
-	return totalUsed
-}
-
-// all pairs, from length 2 to length demons.length - 1;
-/*
-function solveQuest2(notes: string, denoms2 = [1, 3, 5, 10, 15, 16, 20, 24, 25, 30].reverse()) {
-	const brightnesses = notes.split('\n').map(Number);
-	let totalUsed = 0
-	for (const b of brightnesses) {
-		const paths = [{ current: 0, used: [], ignoring: [] }]
-		let best = null
-		while (paths.length) {
-			let { current, used, ignoring } = paths.pop()
-			if (used.length >= best?.length) {
-				continue;
-			}
-			const remaining = b - current
-			for (const d of denoms2) {
-				const dc = used.filter(u => u === d).length
-				const did = d + '-' + dc
-				if (ignoring.includes(did)) {
-					continue
-				}
-				if (d <= remaining) {
-					const nxt = { current: current + d, used: [...used, did], ignoring }
-					if (nxt.current === b) {
-						if (best === null || best.length > nxt.used.length) best = nxt.used
-					} else {
-						paths.push(nxt)
-					}
-					paths.push({ current, used, ignoring: [...ignoring, did] })
-				}
-			}
-			paths.sort((a, b) => a.used.length - b.used.length || a.current - b.current)
-		}
-
-		totalUsed += best.length
-	}
-	return totalUsed
-}*/
-function minBeetles(amount: number, coins: number[], dp: number[]) {
-	for (let i = 0; i < coins.length; i++) {
-		const coin = coins[i]
-		for (let j = coin; j <= amount; j++) {
-			dp[j] = Math.min(dp[j], 1 + dp[j - coin]);
-		}
-	}
-
-	return dp[amount] === Infinity ? -1 : dp[amount];
-}
-function getInitDP(amounts: number[]) {
-	const dp = Array(Math.max(...amounts) + 1).fill(Infinity);
+function minimumBeetlesUpTo(amount: number, beetles: number[]) {
+	const dp = Array(amount + 1).fill(Infinity);
 	dp[0] = 0
+
+	for (let i = 0; i < beetles.length; i++) {
+		const beetle = beetles[i]
+		for (let j = beetle; j <= amount; j++) {
+			dp[j] = Math.min(dp[j], 1 + dp[j - beetle]);
+		}
+	}
+
 	return dp
 }
-// function leastToSumToX(x: number, values: number[], seen: Record<number, number>) {
-// 	let best = Number.MAX_SAFE_INTEGER
-// 	const possible = []
-// 	for (const value of values) {
-// 		if (value > x) continue;
-// 		const remaining = x - value;
-// 		if (remaining in seen) {
-// 			possible.push(seen[remaining])
-// 		} else {
-// 			seen[remaining] = leastToSumToX(remaining, values, seen)
-// 		}
-// 	}
-// 	return Math.min(...possible) + 1
-// }
 
-const genInitSeen = (arr: number[]) => {
-	return arr.reduce((a, b) => ({ ...a, [b]: 1 }), {})
-}
-
-test('work', () => {
-	expect(minBeetles(35, [5, 15, 20], getInitDP([5, 15, 20, 35]))).toBe(2)
-	expect(minBeetles(41, [1, 3, 5, 10, 15, 16, 20, 24, 25, 30], getInitDP([41, 1, 3, 5, 10, 15, 16, 20, 24, 25, 30]))).toBe(2)
-})
-
-function solveQuest2(notes: string, denoms2 = [1, 3, 5, 10, 15, 16, 20, 24, 25, 30]) {
-	denoms2.sort((a, b) => a - b)
+function minimumTotalBeetlesFor(notes: string, stamps: number[], calculateMinimumBeetlesForBrightness: (brightness: number, dp: number[]) => number) {
+	stamps.sort((a, b) => a - b)
 	const brightnesses = notes.split('\n').map(Number);
+
+	const dp = minimumBeetlesUpTo(Math.max(...brightnesses), stamps)
+
 	let totalUsed = 0
-	const dp = getInitDP([...denoms2, ...brightnesses])
-	for (const b of brightnesses) {
-		totalUsed += minBeetles(b, denoms2, dp)
+	for (const brightness of brightnesses) {
+		totalUsed += calculateMinimumBeetlesForBrightness(brightness, dp)
 	}
 	return totalUsed
 }
 
+function minimumTotalBeetles(notes: string, stamps: number[]) {
+	return minimumTotalBeetlesFor(notes, stamps, (brightness, dp) => dp[brightness])
+}
+
+function minimumTotalBeetlesForPairings(notes: string, stamps: number[]) {
+	return minimumTotalBeetlesFor(notes, stamps, (brightness, dp) => {
+		const first = Math.floor(brightness / 2)
+		const second = brightness - first;
+
+		let leastPairSum = Infinity
+		for (let o = 0; o <= 50; o++) {
+			leastPairSum = Math.min(leastPairSum, dp[first + o] + dp[second - o])
+		}
+		return leastPairSum;
+	})
+}
 
 
 describe('Part 1', () => {
 	test('Example', () => {
-		expect(solveQuest(`2
+		expect(minimumTotalBeetles(`2
 4
 7
-16`)).toBe(10)
+16`, [1, 3, 5, 10])).toBe(10)
 	})
 
 	test('Notes', () => {
-		expect(solveQuest(`17087
+		expect(minimumTotalBeetles(`17087
 12507
 18189
 17568
@@ -129,25 +63,24 @@ describe('Part 1', () => {
 16362
 10099
 10059
-15142`)).toBe(13730)
+15142`, [1, 3, 5, 10])).toBe(13730)
 	})
 })
 
 describe('Part 2', () => {
-	test('me', () => {
-
-		expect(solveQuest2(`30`, [5, 15, 20].reverse())).toBe(2) // 15 + 15
-		expect(solveQuest2(`35`, [5, 15, 20].reverse())).toBe(2) // 20 + 15
+	test('30  35', () => {
+		expect(minimumTotalBeetles(`30`, [5, 15, 20])).toBe(2) // 15 + 15
+		expect(minimumTotalBeetles(`35`, [5, 15, 20])).toBe(2) // 20 + 15
 	})
 	test('Example', () => {
-		expect(solveQuest2(`33
+		expect(minimumTotalBeetles(`33
 41
 55
-99`)).toBe(10)
+99`, [1, 3, 5, 10, 15, 16, 20, 24, 25, 30])).toBe(10)
 	})
 
 	test('Notes', () => {
-		expect(solveQuest2(`1959
+		expect(minimumTotalBeetles(`1959
 1279
 1490
 1638
@@ -246,52 +179,19 @@ describe('Part 2', () => {
 1550
 1634
 1775
-1944`)).toBe(5228)
+1944`, [1, 3, 5, 10, 15, 16, 20, 24, 25, 30])).toBe(5228)
 	})
 })
 
-
-function solveQuest3(notes: string, denoms2 = [1, 3, 5, 10, 15, 16, 20, 24, 25, 30]) {
-	denoms2.sort((a, b) => a - b)
-	const brightnesses = notes.split('\n').map(Number);
-	let totalUsed = 0
-	const seen = getInitDP([...denoms2, ...brightnesses])
-	minBeetles(Math.max(...[...denoms2, ...brightnesses]), denoms2, seen)
-	for (const bright of brightnesses) {
-		let a = Math.floor(bright / 2)
-		let b = bright - a;
-
-		let best = Number.MAX_SAFE_INTEGER
-		/*for (let o = -50; o <= 50; o++) {
-			const na = a + o;
-			const nb = b - o
-			const c = seen[na] + seen[nb]
-			if (c < best) {
-				best = c
-			}
-		}*/
-		for (let i = 0; i <= 50; i++) {
-			const c = seen[a] + seen[b]
-			if (c < best) {
-				best = c
-			}
-			a++
-			b--
-		}
-		totalUsed += best;
-	}
-	return totalUsed
-}
-
 describe('Part 3', () => {
 	test('Example', () => {
-		expect(solveQuest3(`156488
+		expect(minimumTotalBeetlesForPairings(`156488
 352486
 546212`, [1, 3, 5, 10, 15, 16, 20, 24, 25, 30, 37, 38, 49, 50, 74, 75, 100, 101])).toBe(10449)
 	})
 
 	test('Notes', () => {
-		expect(solveQuest3(`154608
+		expect(minimumTotalBeetlesForPairings(`154608
 134053
 100794
 160840
@@ -390,6 +290,6 @@ describe('Part 3', () => {
 192285
 113694
 107117
-158267`, [1, 3, 5, 10, 15, 16, 20, 24, 25, 30, 37, 38, 49, 50, 74, 75, 100, 101])).toBe(1234567890)
+158267`, [1, 3, 5, 10, 15, 16, 20, 24, 25, 30, 37, 38, 49, 50, 74, 75, 100, 101])).toBe(147604)
 	})
 })
