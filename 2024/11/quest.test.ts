@@ -1,18 +1,17 @@
 import { describe, expect, test } from 'vitest'
 
+const parseConversions = (notes: string) => notes.split('\n').reduce((conversions, line) => {
+	const [from, rawTo] = line.split(':')
+	conversions[from] = rawTo.split(',');
+	return conversions
+}, {} as Record<string, string[]>)
 
-function solveQuest(notes: string, start = 'A', dayCount = 4) {
-	const g = {}
-	notes.split('\n').map(l => {
-		const [from, rawTo] = l.split(':')
-		g[from] = rawTo.split(',');
-	});
-
-	let populations = {[start]: 1};
-	for (let d = 0; d < dayCount; d++){
+function calculatePopulationTotalAfterDays(conversions: Record<string, string[]>, days: number, initialTermite: string){
+	let populations = {[initialTermite]: 1};
+	for (let _ = 0; _ < days; _++){
 		const newPop = {};
 		for (const from in populations){
-			for (const to of g[from]){
+			for (const to of conversions[from] ?? []){
 				if (!(newPop[to])) newPop[to] = 0
 				newPop[to] += populations[from]
 			}
@@ -22,59 +21,44 @@ function solveQuest(notes: string, start = 'A', dayCount = 4) {
 	return Object.values(populations).reduce((a, b) => a + b, 0);
 }
 
-function solveQuest3(notes: string, start = 'A', dayCount = 4) {
-	const ttypes = new Set<string>()
-	const g = {}
-	notes.split('\n').map(l => {
-		const [from, rawTo] = l.split(':')
-		g[from] = rawTo.split(',');
-		ttypes.add(from)
-		for (const each of g[from]){
-			ttypes.add(each)
-		}
-	});
+function solveQuest1And2(notes: string, initialTermite: string, days: number) {
+	const conversions = parseConversions(notes);
+	return calculatePopulationTotalAfterDays(conversions, days, initialTermite)
+}
+
+function solveQuest3(notes: string, days: number) {
+	const conversions = parseConversions(notes)
 
 	let least = Number.MAX_SAFE_INTEGER
 	let most = Number.MIN_SAFE_INTEGER
-	for (const char of ttypes){
-		let populations = {[char]: 1};
-		for (let d = 0; d < dayCount; d++){
-			const newPop = {};
-			for (const from in populations){
-				for (const to of g[from] ?? []){
-					if (!(newPop[to])) newPop[to] = 0
-					newPop[to] += populations[from]
-				}
-			}
-			populations = newPop
-		}
-		const ttl =  Object.values(populations).reduce((a, b) => a + b, 0);
-		least = Math.min(least, ttl)
-		most = Math.max(most, ttl)
+	for (const char of Object.keys(conversions)){
+		const population = calculatePopulationTotalAfterDays(conversions, days, char)
+		least = Math.min(least, population)
+		most = Math.max(most, population)
 	}
 	return most - least
 }
 
 describe('Part 1', () => {
 	test('Example', () => {
-		expect(solveQuest(`A:B,C
+		expect(solveQuest1And2(`A:B,C
 B:C,A
-C:A`)).toBe(8)
+C:A`, 'A', 4)).toBe(8)
 	})
 
 	test('Notes', () => {
-		expect(solveQuest(`Y:I,E
+		expect(solveQuest1And2(`Y:I,E
 O:I,E
 U:A,I
 E:Y,U,O
 I:O,Y,A
-A:Y,O,U`)).toBe(39)
+A:Y,O,U`, 'A', 4)).toBe(39)
 	})
 })
 
 describe('Part 2', () => {
 	test('Notes', () => {
-		expect(solveQuest(`V:D,S,H,T
+		expect(solveQuest1And2(`V:D,S,H,T
 N:Z,G,Q
 H:R,X,Z,T
 G:Q,L,K,Z
@@ -101,7 +85,7 @@ describe('Part 3', () => {
 	test('Example', () => {
 		expect(solveQuest3(`A:B,C
 B:C,A,A
-C:A`, '', 20)).toBe(268815)
+C:A`, 20)).toBe(268815)
 	})
 
 	test('Notes', () => {
@@ -204,6 +188,6 @@ TLH:LVN,XMP,KNN,TLH,WPZ
 TKG:KRP,DJL,VCC,KRP,WMX
 DCF:KZP,RNH,DCF
 MCX:QWR,DRC,TTT,GBH,FTW
-PFK:KHB,ZCT,MGR,GXS,SNT`, '', 20)).toBe(1178699688052)
+PFK:KHB,ZCT,MGR,GXS,SNT`, 20)).toBe(1178699688052)
 	})
 })
