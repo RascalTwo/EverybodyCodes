@@ -1,220 +1,126 @@
 import { describe, expect, test } from 'vitest'
 
+const SAMPLE_WIDTH = 8;
+const SAMPLE_HEIGHT = 8
 
-function solveQuest(notes: string) {
-	const world = notes.split('\n').map(l => [...l])
-	let newChars = ''
-	for (let r = 0; r < world.length; r++) {
-		for (let c = 0; c < world[r].length; c++) {
-			if (world[r][c] !== '.') continue;
-			let rowChars = '';
-			for (let r2 = 0; r2 < world.length; r2++) {
-				rowChars += world[r2][c]
-			}
-			let colChars = '';
-			for (let c2 = 0; c2 < world[r].length; c2++) {
-				colChars += world[r][c2]
-			}
-			rowChars = rowChars.replace(/\./g, '').replace(/\*/g, '')
-			colChars = colChars.replace(/\./g, '').replace(/\*/g, '')
-			let found;
-			for (const char of rowChars) {
-				if (colChars.includes(char)) {
-					found = char
-					break
-				}
-			}
-			world[r][c] = found
-			newChars += found;
+function getCharsInLine(grid: string[][], start: number, end: number, row: number, col: number, traversing: 'row' | 'col'): string[] & { questionMark?: { row: number, col: number } } {
+	const chars = [] as string[] & { questionMark?: { row: number, col: number } };
+	for (let o = start; o < end; o++) {
+		const char = traversing === 'row' ? grid[o][col] : grid[row][o]
+		if (char === '.' || char === '*') continue
+		if (char === '?') {
+			chars.questionMark = traversing === 'row' ? { row: o, col } : { row, col: o }
+			continue
 		}
+		chars.push(char)
 	}
-	return newChars
+	return chars
 }
 
-function solveQuest2(notes: string) {
-	const word = solveQuest(notes);
-	let total = 0;
-	for (let i = 0; i < word.length; i++) {
-		let c = word[i]
-		const bp = c.charCodeAt(0) - 'A'.charCodeAt(0) + 1
-		total += (i + 1) * bp
-	}
-	return total
-}
+function fillInShrines(notes: string, spaceBetween: number) {
+	const grid = notes.split('\n').map(l => [...l])
+	const sampleColumnCount = grid[2].join('').split('....').length - 1
+	const sampleRowCount = grid.map(r => r[2]).join('').split('....').length - 1
+	const solvedSample = new Set<number>();
 
-const parseStackThing = (notes: string) => {
-	const rawLines = notes.split('\n')
-	const rowsOfStacks = notes.split('\n\n').length
-	const columnsOfStacks = notes.split('\n')[0].split(' ').length
-	const inputs = [];
-	const inputWidth = 8
-	const inputHeight = 8
-	for (let sr = 0; sr < rowsOfStacks; sr++) {
-		for (let sc = 0; sc < columnsOfStacks; sc++) {
-			let lines = [];
-			for (let r = sr * 8 + sr; r < sr * 8 + sr + inputHeight; r++) {
-				let line = ''
-				for (let c = sc * 8 + sc; c < sc * 8 + sc + inputWidth; c++) {
-					line += rawLines[r][c]
-				}
-				lines.push(line)
-			}
-			inputs.push(lines.join('\n'))
-		}
-	}
-	return inputs
-}
-
-test('parser', () => {
-	const raw = `
-**JFBN** **RKJG** **TJRG** **HPMR** **FTCB** **JDHC** **QRFV** **DTVN** **VWZP** **MTGD** **GWPK** **FMDL** **QLKH** **XNTP** **XKDM**
-**WCXG** **QZBC** **PXCV** **TFSB** **JSZR** **PBFT** **NMXG** **JGPH** **SXQG** **KZXR** **CBZN** **NKTH** **FPMX** **JKCZ** **HJNC**
-NR....FS ML....RZ MP....CJ SN....PL QJ....SH WF....BM MF....PN JS....CW VP....TB ZR....WX KF....TZ KL....PN DZ....NQ LP....NJ LZ....VX
-LX....CD FK....GN NB....VT GJ....BT GM....ZD VJ....XG QX....GL HB....GD JC....FW GK....DF CV....QB VH....DB FS....HK ZF....HS MG....HK
-TV....WK JH....PX DK....XR MC....WX LR....PX LD....HC VC....DJ KF....ZP RN....QS LV....MQ HX....PN JX....FC LJ....WM CX....KD CW....JD
-BH....GJ SB....CQ GQ....SZ RH....FV BF....TC ST....PN WH....RK TN....VR GH....ZX ST....CN WG....DR GM....QT PX....GB BT....VM BN....RQ
-**DHTL** **XPNL** **QZND** **XGVL** **XDHQ** **WNSM** **JDCP** **FSWC** **HNBR** **WFCQ** **FTDQ** **VBPQ** **GNBZ** **MFLB** **WQVZ**
-**SKRV** **FSMH** **KBSM** **NWJC** **GLPM** **LGXV** **HLWK** **RZBK** **JTCF** **SVLN** **HXVR** **GCJX** **JSDW** **SVHD** **RLGB**
-
-**DFBW** **PHXG** **XCFP** **TLZN** **VGRB** **QBLS** **SWHM** **BZPR** **HQVW** **TNJQ** **MTDG** **FPTL** **ZXKW** **LJQZ** **FNHX**
-**CQMK** **TZWJ** **JNLT** **XPRK** **MNJZ** **DJPM** **ZFXP** **QDFV** **MXFD** **XZGC** **ZRSW** **QHKB** **BSNG** **NVTX** **DRPB**
-RP....VG WZ....PD CH....VG BG....DH XP....QL DS....WH SV....FX WV....TQ TN....GF HB....KJ SZ....QL NS....ZT CZ....PX VW....XQ JB....QW
-QN....BK JN....CM LR....WS LK....RW HN....ST MB....ZP ZM....BL BJ....ZF WH....SP TF....CR HC....WB QG....CB GD....NS TZ....BJ ZK....FC
-XM....FC GT....QB TX....FN MC....TZ JB....MD FR....XL TH....RJ CN....MD ZJ....QB QP....LZ NR....PV FP....KL BV....KJ KN....SG XH....DN
-DW....HT LF....XH JD....MP VP....NX RV....GZ GK....QJ WP....DN LP....RS VM....DX WG....XN DT....MG XW....DH LR....QW MD....LF PG....TR
-**NTGX** **CMNL** **WSHV** **WCVB** **LPXT** **ZXHR** **NLDT** **CTNM** **ZTJB** **HBRW** **VLNP** **SZCN** **DJRP** **WFKS** **TKZG**
-**RPHV** **FBQD** **GDMR** **DGHM** **HDSQ** **FWKG** **RJBV** **LSWJ** **GSPN** **LFPK** **CHBQ** **XGDW** **LQCV** **BGMD** **JQWC**
-`.trim()
-	const res = parseStackThing(raw)
-	expect(res).toHaveLength(30)
-})
-
-function solveQuest25(notes: string) {
-	const worlds = parseStackThing(notes);
-	let total = 0;
-	for (const rawWorld of worlds) {
-		const word = solveQuest(rawWorld);
-		for (let i = 0; i < word.length; i++) {
-			let c = word[i]
-			const bp = c.charCodeAt(0) - 'A'.charCodeAt(0) + 1
-			total += (i + 1) * bp
-		}
-	}
-	return total
-}
-function solveQuest3(notes: string) {
-	let total = 0
-	const world = notes.split('\n').map(l => [...l])
-	const inputColCount = world[2].join('').split('...').length - 1
-	const inputRowCount = world.map(r => r[2]).join('').split('...').length - 1
-	const solved = new Set<string>();
+	const words = [] as string[]
 	while (true) {
-		const prevTotal = total
-		for (let ir = 0; ir < inputRowCount; ir++) {
-			//if (ir % 2 !== 0) continue
-			let startR = ir * 8 - (2 * ir)
-			let endR = startR + 8
-			for (let ic = 0; ic < inputColCount; ic++) {
-				const ikey = `${ir}-${ic}`
-				if (solved.has(ikey)) continue
-				let startC = ic * 8 - (2 * ic)
-				let endC = startC + 8
+		const startWordCount = words.length
+		for (let sr = 0; sr < sampleRowCount; sr++) {
+			const startR = sr * SAMPLE_HEIGHT + (spaceBetween * sr)
+			const endR = startR + SAMPLE_HEIGHT
+			for (let sc = 0; sc < sampleColumnCount; sc++) {
+				const sampleKey = sr * sampleColumnCount + sc
+				if (solvedSample.has(sampleKey)) continue
 
-				let newChars = [];
+				const startC = sc * SAMPLE_WIDTH + (spaceBetween * sc)
+				const endC = startC + SAMPLE_WIDTH
 
-				const questionables = []
-				const solvedEasily = []
+
+				const word = [];
+				const unknowns = []
+				const obvious = []
 				for (let r = startR; r < endR; r++) {
 					for (let c = startC; c < endC; c++) {
-						if (world[r][c] !== '.') continue;
-						let rowChars = '';
-						for (let r2 = startR; r2 < endR; r2++) {
-							rowChars += world[r2][c]
-						}
-						let colChars = '';
-						for (let c2 = startC; c2 < endC; c2++) {
-							colChars += world[r][c2]
-						}
-						rowChars = rowChars.replace(/\./g, '').replace(/\*/g, '')
-						colChars = colChars.replace(/\./g, '').replace(/\*/g, '')
-						let found;
+						if (grid[r][c] !== '.') continue;
+
+						const rowChars = getCharsInLine(grid, startR, endR, r, c, 'row')
+						const colChars = getCharsInLine(grid, startC, endC, r, c, 'col')
+
+						let charInBoth;
 						for (const char of rowChars) {
 							if (colChars.includes(char)) {
-								found = char
+								charInBoth = char
 								break
 							}
 						}
-						if (found) {
-							world[r][c] = found
-							newChars.push(found)
-							solvedEasily.push({ r, c })
-						} else if (rowChars.includes('?') || colChars.includes('?')) {
-							newChars.push('?')
-							questionables.push({ r, c, startR, startC, insertIndex: newChars.length - 1 })
+
+						if (charInBoth) {
+							grid[r][c] = charInBoth
+							word.push(charInBoth)
+							obvious.push({ r, c })
+						} else {
+							word.push('?')
+							unknowns.push({ r, c, index: word.length - 1 })
 						}
 					}
 				}
 
 				let unsolvable = false
-				for (const q of questionables) {
-					let similarR = questionables.filter(q2 => q2.r === q.r)
-					if (similarR.length > 1) {
+				const unknownRows = new Set()
+				const unknownCols = new Set()
+				for (const unknown of unknowns) {
+					if (unknownRows.has(unknown.r) || unknownCols.has(unknown.c)) {
 						unsolvable = true;
 						break
 					}
-					let similarC = questionables.filter(q2 => q2.c === q.c)
-					if (similarC.length > 1) {
-						unsolvable = true;
-						break
-					}
+					unknownRows.add(unknown.r)
+					unknownCols.add(unknown.c)
 				}
 
 				if (unsolvable) {
-					solvedEasily.forEach(({ r, c }) => world[r][c] = '.')
+					obvious.forEach(({ r, c }) => grid[r][c] = '.')
 					continue
 				}
 
-				for (const { r, c, startR, startC, insertIndex } of questionables) {
-					let questionMark;
-					let rowChars = '';
-					for (let r2 = startR; r2 < endR; r2++) {
-						rowChars += world[r2][c]
-						if (world[r2][c] === '?') questionMark = { r: r2, c }
-					}
-					let colChars = '';
-					for (let c2 = startC; c2 < endC; c2++) {
-						colChars += world[r][c2]
-						if (world[r][c2] === '?') questionMark = { r, c: c2 }
-					}
-					rowChars = rowChars.replace(/\./g, '').replace(/\*/g, '')
-					colChars = colChars.replace(/\./g, '').replace(/\*/g, '')
-					const rowCharsUnique = [...rowChars.replace(/\?/g, '')].filter((c, i, arr) => arr.indexOf(c) === arr.lastIndexOf(c))
-					const colCharsUnique = [...colChars.replace(/\?/g, '')].filter((c, i, arr) => arr.indexOf(c) === arr.lastIndexOf(c))
-					const found = [...rowCharsUnique, ...colCharsUnique][0]
-					world[r][c] = found
-					if (!questionMark) {
-						continue
-					}
-					world[questionMark.r][questionMark.c] = found
-					newChars.splice(insertIndex, 1, found)
+				for (const { r, c, index } of unknowns) {
+					const rowChars = getCharsInLine(grid, startR, endR, r, c, 'row')
+					const colChars = getCharsInLine(grid, startC, endC, r, c, 'col')
+					const questionMark = rowChars.questionMark || colChars.questionMark
+
+					const deduced = [rowChars, colChars].flatMap(chars => chars.filter((c, i, arr) => arr.indexOf(c) === arr.lastIndexOf(c)))[0]
+					grid[r][c] = deduced
+					grid[questionMark.row][questionMark.col] = deduced
+					word.splice(index, 1, deduced)
 				}
 
-				if (newChars.length < 16) {
-					continue
-				}
-
-				for (let i = 0; i < newChars.length; i++) {
-					let c = newChars[i]
-					const bp = c.charCodeAt(0) - 'A'.charCodeAt(0) + 1
-					total += (i + 1) * bp
-				}
-
-				solved.add(ikey)
+				words.push(word.join(''))
+				solvedSample.add(sampleKey)
 			}
 		}
-		if (total === prevTotal) break
+		if (startWordCount === words.length) break
 	}
-	return total
+	return words
+}
+
+function sumWordPowers(words: string[]) {
+	return words.reduce((total, word) => {
+		for (let i = 0; i < word.length; i++)
+			total += (i + 1) * (word[i].charCodeAt(0) - 'A'.charCodeAt(0) + 1)
+		return total
+	}, 0)
+}
+
+function solveQuest(notes: string) {
+	return fillInShrines(notes, 0)[0]
+}
+
+function solveQuest2(notes: string) {
+	return sumWordPowers(fillInShrines(notes, 1))
+}
+
+function solveQuest3(notes: string) {
+	return sumWordPowers(fillInShrines(notes, -2))
 }
 
 describe('Part 1', () => {
@@ -254,7 +160,7 @@ SG....MN
 	})
 
 	test('Notes', () => {
-		expect(solveQuest25(`**JFBN** **RKJG** **TJRG** **HPMR** **FTCB** **JDHC** **QRFV** **DTVN** **VWZP** **MTGD** **GWPK** **FMDL** **QLKH** **XNTP** **XKDM**
+		expect(solveQuest2(`**JFBN** **RKJG** **TJRG** **HPMR** **FTCB** **JDHC** **QRFV** **DTVN** **VWZP** **MTGD** **GWPK** **FMDL** **QLKH** **XNTP** **XKDM**
 **WCXG** **QZBC** **PXCV** **TFSB** **JSZR** **PBFT** **NMXG** **JGPH** **SXQG** **KZXR** **CBZN** **NKTH** **FPMX** **JKCZ** **HJNC**
 NR....FS ML....RZ MP....CJ SN....PL QJ....SH WF....BM MF....PN JS....CW VP....TB ZR....WX KF....TZ KL....PN DZ....NQ LP....NJ LZ....VX
 LX....CD FK....GN NB....VT GJ....BT GM....ZD VJ....XG QX....GL HB....GD JC....FW GK....DF CV....QB VH....DB FS....HK ZF....HS MG....HK
