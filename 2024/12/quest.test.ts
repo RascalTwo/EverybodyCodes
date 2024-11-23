@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest'
 
 type Loc = { r: number, c: number }
+type Target = Loc & { durability: number }
 
-function calculateDest({ r, c }: Loc, world: string[][], power: number, target: Loc): { hit: Loc, locAboveTarget: Loc | null } {
-
+function calculateHit({ r, c }: Loc, world: string[][], power: number, target: Loc): { hit: Loc, locAboveTarget: Loc | null } {
 	let locAboveTarget = null
 
 	let r1 = r;
@@ -13,30 +13,21 @@ function calculateDest({ r, c }: Loc, world: string[][], power: number, target: 
 		r1--
 		c1++
 	}
-	//const r1 = r - power;
-	//const c1 = c + power;
 
 	const r2 = r1;
-	//let c2 = c1 + power;
 	let c2 = c1;
 	for (let p = 0; p < power; p++) {
-		if (c2 === target.c && r2 < target.r) locAboveTarget = { r: r2, c: c2 }
+		if (!locAboveTarget && c2 === target.c && r2 < target.r) locAboveTarget = { r: r2, c: c2 }
 		c2++
 	}
-
 
 	let r3 = r2;
 	let c3 = c2;
 	while (world[r3]?.[c3] !== 'T' && world[r3]?.[c3] !== 'H' && r3 !== world.length - 1) {
-		if (c3 === target.c && r3 < target.r) locAboveTarget = { r: r3, c: c3 }
+		if (!locAboveTarget && c3 === target.c && r3 < target.r) locAboveTarget = { r: r3, c: c3 }
 		r3++;
 		c3++;
 	}
-
-	// const height = groundR - r2;
-
-	// const r3 = r2 + height;
-	// const c3 = c2 + height;
 
 	return {
 		hit: { r: r3, c: c3 },
@@ -45,178 +36,146 @@ function calculateDest({ r, c }: Loc, world: string[][], power: number, target: 
 
 }
 
-function drawHit(world: string[][], loc: Loc) {
-	const prev = world[loc.r][loc.c]
-	world[loc.r][loc.c] = 'X'
-	//console.log(loc)
-	//console.log(world.map(l => l.join('')).join('\n'))
-	world[loc.r][loc.c] = prev
-}
-
-function solveQuest(notes: string) {
+function parseWorld(notes: string) {
 	const world = notes.split('\n').map(l => [...l]);
+
 	const launchers: Loc[] = [];
-	const targets: (Loc & { h: number })[] = [];
+	const targets: Target[] = [];
+
 	for (let r = 0; r < world.length; r++) {
 		for (let c = 0; c < world[0].length; c++) {
 			const char = world[r][c];
 			if (char >= 'A' && char <= 'Z') {
-				if (char === 'T') targets.push({ r, c, h: 1 })
-				else if (char === 'H') targets.push({ r, c, h: 2 })
+				if (char === 'T' || char === 'H') targets.push({ r, c, durability: 1 + +(char === 'H') })
 				else launchers.push({ r, c })
 			}
 		}
 	}
 
-	targets.sort((a, b) => {
-		const cDiff = a.c - a.c;
-		if (cDiff) return cDiff
-		const rDiff = a.r - b.r;
-		if (rDiff) return rDiff;
-		return 0
-	});
-	launchers.sort((a, b) => {
-		return a.r - b.r;
-	})
+	launchers.sort((a, b) => a.r - b.r)
+	targets.sort((a, b) => a.r - b.r || a.c - b.c);
 
-	const doubleTargets = targets.filter(t => t.h === 2)
-
-	let hits = []
-	for (let t = 0; t < targets.length; t++) {
-		const dest = targets[t];
-		let targetHit = false;
-		for (let l = 0; l < launchers.length; l++) {
-			if (targetHit) break
-			const origin = launchers[l]
-			for (let power = 1; true; power++) {
-				const { hit, locAboveTarget } = calculateDest(origin, world, power, dest)
-				drawHit(world, hit)
-				if (hit.r === dest.r && hit.c === dest.c) {
-					hits.push({ power, segment: world[origin.r][origin.c] })
-					if (dest.h === 2) hits.push(hits.at(-1))
-					targetHit = true;
-					break
-				}
-				if (locAboveTarget) {
-					break
-				}
-			}
-		}
-		if (targetHit) {
-			world[dest.r][dest.c] = 'O'
-		} else {
-			console.log('not hit')
-		}
-	}
-
-	return hits.reduce((a, b) => a + ((b.segment.charCodeAt(0) - 'A'.charCodeAt(0) + 1) * b.power), 0)
+	return { world, launchers, targets };
 }
 
-function solveQuest3(notes: string) {
-	let meteors = notes.split('\n').map(l => {
-		const [x, y] = l.split(' ').map(Number)
-		return { detected: { x, y }, x, y } as {
-			detected: { x, y },
-			x: number,
-			y: number,
-			best?: number
+function attemptToHit(world: string[][], source: Loc, target: Target) {
+	for (let power = 1; true; power++) {
+		const { hit, locAboveTarget } = calculateHit(source, world, power, target)
+		if (hit.r === target.r && hit.c === target.c) {
+			return { power, times: target.durability }
 		}
-	});
-	const launchers = [{ x: 0, y: 0, segment: 'A' }, { x: 0, y: 1, segment: 'B' }, { x: 0, y: 2, segment: 'C' }]
+		if (locAboveTarget) {
+			break
+		}
+	}
+	return { power: 0, times: 0 }
+}
 
-	const maxPower = Math.ceil(Math.max(...meteors.map(m => m.x)) / 2)
+function calculateRankingValue(power: number, segment: string) {
+	return (segment.charCodeAt(0) - 'A'.charCodeAt(0) + 1) * power
+}
 
-	function visualizeProjectile(launchers, projectile, meteors) {
-		return
-		if (projectile.segment === 'C' && projectile.power === 1) {
-			const maxXProjectile = Math.max(...projectile.history.map(h => h.x), ...meteors.map(m => m.x))
-			const maxYProjectile = Math.max(...projectile.history.map(h => h.y), ...meteors.map(m => m.y))
-			const maxX = maxXProjectile * 2;
-			const maxY = maxYProjectile * 2;
+function destroyTargets(notes: string) {
+	const { world, launchers, targets } = parseWorld(notes);
 
-			const world = [];
-			for (let y = maxY; y >= -1; y--) {
-				let line = []
-				for (let x = -1; x <= maxX; x++) {
-					if (y === -1) {
-						line.push('=')
-						continue
-					}
-					const launcher = launchers.find(l => l.x === x && l.y === y)
-					if (launcher) {
-						line.push(launcher.segment)
-						continue
-					}
+	let rankingValues = []
+	for (const target of targets) {
+		const prevHits = rankingValues.length
 
-					const smoke = projectile.history.find(h => h.x === x && h.y === y)
-					if (smoke) {
-						line.push('p')
-						continue
-					}
-					if (projectile.x === x && projectile.y === y) {
-						line.push('P')
-						continue
-					}
-					const meteor = meteors.find(m => m.x === x && m.y === y)
-					if (meteor) {
-						line.push('M')
-						continue
-					}
-
-					line.push('.')
-				}
-				world.push(line.join(''))
+		for (const launcher of launchers) {
+			const { power, times } = attemptToHit(world, launcher, target)
+			if (times) {
+				rankingValues.push(...new Array(times).fill(calculateRankingValue(power, world[launcher.r][launcher.c])))
+				break
 			}
-			const worldStr = world.join('\n')
-			console.clear()
-			console.log(worldStr)
+		}
+
+		if (prevHits !== rankingValues.length) {
+			world[target.r][target.c] = 'O'
+		} else {
+			throw new Error(`Unable to hit target: ${target}`)
 		}
 	}
 
-	const collisionRankingScores = {}
-	let projectiles = [];
+	return rankingValues.reduce((a, b) => a + b, 0)
+}
+
+function parseMeteors(notes: string) {
+	let maxX = Number.MIN_SAFE_INTEGER;
+	let maxY = Number.MIN_SAFE_INTEGER;
+
+	const meteors = notes.split('\n').map(l => {
+		const [x, y] = l.split(' ').map(Number)
+		maxX = Math.max(maxX, x)
+		maxY = Math.max(maxY, y)
+		return { x, y }
+	});
+
+	return {
+		meteors,
+		calculateCoordKey: maxX > maxY ? (x: number, y: number) => y * maxX + x : (x: number, y: number) => x * maxY + y
+	}
+}
+
+
+function destroyMeteors(notes: string) {
+	let { meteors, calculateCoordKey } = parseMeteors(notes)
+	const launchers = [{ x: 0, y: 0, segment: 'A' }, { x: 0, y: 1, segment: 'B' }, { x: 0, y: 2, segment: 'C' }]
+
+	const hittableCoords: Record<string, number> = {}
+	let projectiles: { x: number, y: number, horizontals: number, rankingValue: number }[] = [];
 	let total = 0
 	for (let time = 0; meteors.length; time++) {
-		for (const projectile of projectiles) {
-			projectile.history.push({ x: projectile.x, y: projectile.y })
-			if (projectile.rights) {
-				projectile.rights--;
-			} else {
-				projectile.y--
-			}
+		// Move projectiles
+		for (let p = projectiles.length - 1; p >= 0; p--) {
+			const projectile = projectiles[p]
+
 			projectile.x++;
+
+			if (projectile.horizontals) {
+				projectile.horizontals--;
+			} else if (--projectile.y < 0) {
+				projectiles.splice(p, 1)
+			}
 		}
-		projectiles = projectiles.filter(projectile => projectile.y !== -1);
+
+		// Spawn new projectiles
 		const power = time + 1
 		for (const launcher of launchers) {
 			projectiles.push({
 				x: launcher.x + power,
 				y: launcher.y + power,
-				rights: power,
-				power: power,
-				segment: launcher.segment,
-				history: []
+				horizontals: power,
+				rankingValue: calculateRankingValue(power, launcher.segment)
 			})
 		}
+
+		// Track hittable coordinates
 		for (const projectile of projectiles) {
-			const key = projectile.x + "|" + projectile.y
-			if (!(key in collisionRankingScores)) collisionRankingScores[key] = []
-			collisionRankingScores[key].push(((projectile.segment.charCodeAt(0) - 'A'.charCodeAt(0) + 1) * projectile.power))
+			const key = calculateCoordKey(projectile.x, projectile.y)
+			hittableCoords[key] = Math.min(hittableCoords[key] ?? Number.MAX_SAFE_INTEGER, projectile.rankingValue)
 		}
-		for (const meteor of meteors) {
+
+		// Move meteors & detect collisions
+		for (let m = meteors.length - 1; m >= 0; m--) {
+			const meteor = meteors[m];
+
 			meteor.y--;
-			meteor.x--
-			const key = meteor.x + "|" + meteor.y
-			const rankingScores = collisionRankingScores[key] ?? []
-			if (!rankingScores.length) continue
-			const projectilesWithRankingScores = rankingScores.sort((a, b) => a - b);
-			meteor.best = projectilesWithRankingScores[0];
-			total += meteor.best
+			meteor.x--;
+
+			const rankingScore = hittableCoords[calculateCoordKey(meteor.x, meteor.y)]
+			if (rankingScore !== undefined) {
+				total += rankingScore
+				meteors.splice(m, 1)
+			}
 		}
-		meteors = meteors.filter(meteor => meteor.best === undefined);
+
+		// Detect missed meteors
 		for (const meteor of meteors) {
 			if (meteor.x <= 0 || meteor.y < 0) {
-				throw new Error(`Missed ${JSON.stringify(meteor.detected)} meteor`)
+				const ox = meteor.x + time;
+				const oy = meteor.y + time;
+				throw new Error(`Missed ${JSON.stringify({ x: ox, y: oy })} meteor`)
 			}
 		}
 	}
@@ -226,7 +185,7 @@ function solveQuest3(notes: string) {
 
 describe('Part 1', () => {
 	test('Example', () => {
-		expect(solveQuest(`.............
+		expect(destroyTargets(`.............
 .C...........
 .B......T....
 .A......T.T..
@@ -234,7 +193,7 @@ describe('Part 1', () => {
 	})
 
 	test('Notes', () => {
-		expect(solveQuest(`.................................
+		expect(destroyTargets(`.................................
 .C............T......T.....T.T.T.
 .B............T......T.....T.T.T.
 .A............T......T.....T.T.T.
@@ -244,7 +203,7 @@ describe('Part 1', () => {
 
 describe('Part 2', () => {
 	test('Example', () => {
-		expect(solveQuest(`.............
+		expect(destroyTargets(`.............
 .C...........
 .B......H....
 .A......T.H..
@@ -252,7 +211,7 @@ describe('Part 2', () => {
 	})
 
 	test('Notes', () => {
-		expect(solveQuest(`...................................................................................................
+		expect(destroyTargets(`...................................................................................................
 ...............................................................................TT..TT..TTT..TT..TT.
 ...............................................................................TT..TT..TTT..TT..TT.
 ..............................................................................TTTTTTTTTTTTTTTTTTTTT
@@ -279,26 +238,26 @@ describe('Part 2', () => {
 describe('Part 3', () => {
 	describe('Example', () => {
 		test('6 7', () => {
-			expect(solveQuest3(`6 7`)).toBe(6)
+			expect(destroyMeteors(`6 7`)).toBe(6)
 		})
 		test('6 5', () => {
-			expect(solveQuest3(`6 5`)).toBe(2)
+			expect(destroyMeteors(`6 5`)).toBe(2)
 		})
 		test('10 5', () => {
-			expect(solveQuest3(`10 5`)).toBe(3)
+			expect(destroyMeteors(`10 5`)).toBe(3)
 		})
 		test('5 5', () => {
-			expect(solveQuest3(`5 5`)).toBe(2)
+			expect(destroyMeteors(`5 5`)).toBe(2)
 		})
 		test('Full', () => {
-			expect(solveQuest3(`6 5
+			expect(destroyMeteors(`6 5
 				6 7
 				10 5`.trim())).toBe(11)
 		})
 	})
 
 	test('Notes', () => {
-		expect(solveQuest3(`3570 2915
+		expect(destroyMeteors(`3570 2915
 3545 3381
 3877 2733
 3672 2559
