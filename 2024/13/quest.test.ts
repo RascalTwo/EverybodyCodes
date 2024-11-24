@@ -1,170 +1,91 @@
 import { describe, expect, test } from 'vitest'
 
-function dijkstra(graph, startNode) {
-	const distances = {};
-	const previousNodes = {};
-	const visited = {};
-	const unvisited = Object.keys(graph);
-
-	// Initialize distances
+function dijkstra(graph: Record<number, Record<number, number>>, start: number) {
+	const times = {};
 	for (const node in graph) {
-		distances[node] = Infinity;
+		times[node] = Infinity;
 	}
-	distances[startNode] = 0;
+	times[start] = 0;
 
-	while (unvisited.length > 0) {
-		let currentNode = null;
-		let shortestDistance = Infinity;
-
-		// Find the node with the shortest distance
-		for (const node of unvisited) {
-			if (distances[node] < shortestDistance) {
-				shortestDistance = distances[node];
-				currentNode = node;
-			}
+	const unvisited = new Set(Object.keys(graph));
+	while (unvisited.size) {
+		let node = null;
+		for (const otherNode of unvisited) {
+			if (!node || times[otherNode] < times[node]) node = otherNode
 		}
+		if (node === null) break;
 
-		if (currentNode === null) break;
+		unvisited.delete(node);
 
-		unvisited.splice(unvisited.indexOf(currentNode), 1);
-		visited[currentNode] = true;
-
-		// Update distances to neighbors
-		for (const neighbor in graph[currentNode]) {
-			const distance = distances[currentNode] + graph[currentNode][neighbor] + 1;
-			if (distance < distances[neighbor]) {
-				distances[neighbor] = distance;
-				previousNodes[neighbor] = currentNode;
-			}
+		for (const neighbor in graph[node]) {
+			times[neighbor] = Math.min(times[neighbor], times[node] + graph[node][neighbor])
 		}
 	}
 
-	return { distances, previousNodes };
+	return times;
 }
 
-function getPath(previousNodes, endNode) {
-	const path = [];
-	let currentNode = endNode;
+type Loc = { r: number, c: number }
 
-	while (currentNode !== undefined) {
-		path.unshift(currentNode);
-		currentNode = previousNodes[currentNode];
-	}
+const DIRECTIONS = [[1, 0], [-1, 0], [0, 1], [0, -1]]
 
-	return path;
-}
+const charToLevel = (char: string) => char >= '0' && char <= '9' ? +char : 0;
 
-
-function solveQuest(notes: string) {
+function parseWorld(notes: string) {
 	const world = notes.split('\n').map(l => [...l]);
+	const maxR = world.length;
+	const maxC = world[0].length;
+	const calculateCoordKey = maxR > maxC ? (r: number, c: number) => c * maxR + r : (r: number, c: number) => r * maxC + c
 
-	const graph = {};
-	let start = { r: 0, c: 0 }
+	const graph: Record<number, Record<number, number>> = {};
+	let starts: Loc[] = []
 	let end = { r: 0, c: 0 }
 	for (let r = 0; r < world.length; r++) {
 		for (let c = 0; c < world[0].length; c++) {
-			const char = world[r][c]
-			if (char === '#' || char === ' ') continue;
-			if (char === 'S') start = { r, c }
-			if (char === 'E') end = { r, c }
-			const fromLevel = char >= '0' && char <= '9' ? +char : 0;
-			const key = r + '|' + c;
-			graph[key] = {}
-			for (const [ro, co] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-				const [nr, nc] = [r + ro, c + co];
-				const otherChar = world[nr]?.[nc]
-				if (!otherChar || otherChar === '#' || otherChar === ' ') continue;
-				const toLevel = otherChar >= '0' && otherChar <= '9' ? +otherChar : 0;
+			const fromChar = world[r][c]
+			if (fromChar === '#' || fromChar === ' ') continue;
 
-				let weight = Math.abs(fromLevel - toLevel)
-				for (let c = 1; c <= 10; c++) {
-					const nFrom = (fromLevel + c) % 10;
-					const nTo = (toLevel + c) % 10;
-					const dist = Math.abs(nFrom - nTo)
-					if (dist < weight) {
-						weight = dist
-					}
+			if (fromChar === 'S') starts.push({ r, c })
+			if (fromChar === 'E') end = { r, c }
+
+			const fromLevel = charToLevel(fromChar)
+			const times = graph[calculateCoordKey(r, c)] = {}
+			for (const [ro, co] of DIRECTIONS) {
+				const [nr, nc] = [r + ro, c + co];
+				const toChar = world[nr]?.[nc]
+				if (!toChar || toChar === '#' || toChar === ' ') continue;
+				const toLevel = charToLevel(toChar)
+
+				let time = Number.MAX_SAFE_INTEGER
+				for (let c = 0; c <= 10; c++) {
+					time = Math.min(time, Math.abs((fromLevel + c) % 10 - (toLevel + c) % 10))
 				}
-				const otherKey = nr + '|' + nc;
-				if (weight === 0) {
-					graph[key][otherKey] = 0;
-				} else {
-					graph[key][otherKey] = weight;
-				}
+
+				times[calculateCoordKey(nr, nc)] = time + 1;
 			}
 		}
 	}
-	const { distances, previousNodes } = dijkstra(graph, start.r + '|' + start.c)
-	const p = getPath(previousNodes, end.r + '|' + end.c)
-	for (const node of p) {
-		const [r, c] = node.split('|').map(Number)
-		world[r][c] = '+'
-	}
-	console.log(world.map(l => l.join('')).join('\n'))
-	const distToEnd = distances[end.r + '|' + end.c]
-	return distToEnd
+
+	return { graph, starts, end, calculateCoordKey }
+}
+
+function solveQuest(notes: string) {
+	const { graph, starts: [start], end, calculateCoordKey } = parseWorld(notes);
+	const times = dijkstra(graph, calculateCoordKey(start.r, start.c))
+	return times[calculateCoordKey(end.r, end.c)]
 }
 
 function solveQuest3(notes: string) {
-	const world = notes.split('\n').map(l => [...l]);
+	const { graph, starts, end, calculateCoordKey } = parseWorld(notes);
+	const times = dijkstra(graph, calculateCoordKey(end.r, end.c));
 
-	const graph = {};
-	let starts = []
-	let end = { r: 0, c: 0 }
-	for (let r = 0; r < world.length; r++) {
-		for (let c = 0; c < world[0].length; c++) {
-			const char = world[r][c]
-			if (char === '#' || char === ' ') continue;
-			if (char === 'S') starts.push({ r, c })
-			if (char === 'E') end = { r, c }
-			const fromLevel = char >= '0' && char <= '9' ? +char : 0;
-			const key = r + '|' + c;
-			graph[key] = {}
-			for (const [ro, co] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-				const [nr, nc] = [r + ro, c + co];
-				const otherChar = world[nr]?.[nc]
-				if (!otherChar || otherChar === '#' || otherChar === ' ') continue;
-				const toLevel = otherChar >= '0' && otherChar <= '9' ? +otherChar : 0;
-
-				let weight = Math.abs(fromLevel - toLevel)
-				for (let c = 1; c <= 10; c++) {
-					const nFrom = (fromLevel + c) % 10;
-					const nTo = (toLevel + c) % 10;
-					const dist = Math.abs(nFrom - nTo)
-					if (dist < weight) {
-						weight = dist
-					}
-				}
-				const otherKey = nr + '|' + nc;
-				if (weight === 0) {
-					graph[key][otherKey] = 0;
-				} else {
-					graph[key][otherKey] = weight;
-				}
-			}
-		}
+	let quickest = Number.MAX_SAFE_INTEGER
+	for (const start of starts) {
+		quickest = Math.min(quickest, times[calculateCoordKey(start.r, start.c)])
 	}
-	const { distances, previousNodes } = dijkstra(graph, end.r + '|' + end.c)
-	let best = Number.MAX_SAFE_INTEGER
-	for (const [s, start] of starts.entries()) {
-		const distToStart = distances[start.r + '|' + start.c]
-		best = Math.min(best, distToStart)
-	}
-	return best
+	return quickest
 }
 
-/*
-#######
-#6769##
-S50505E
-#97434#
-#######
-
-28 sec.
-*/
-
-// 0    5    6    7    6    5    4    3    4    5    0
-// 
 
 describe('Part 1', () => {
 	test('Example', () => {
