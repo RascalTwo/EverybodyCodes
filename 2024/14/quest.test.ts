@@ -1,111 +1,84 @@
 import { describe, expect, test } from 'vitest'
 
 
-function solveQuest(notes: string) {
-	const loc = { x: 0, y: 0, depth: 0 }
-	const changes = notes.split(',').map(thing => {
+function parseGrowths(notes: string): Loc[][] {
+	return notes.split('\n').map(l => l.split(',').map(thing => {
 		const dir = thing[0];
 		const change = +thing.slice(1)
 		switch (dir) {
 			case 'U':
-				return [0, change, 0]
-			case 'R':
-				return [change, 0, 0]
+				return { x: 0, height: change, depth: 0 }
 			case 'D':
-				return [0, -change, 0]
-			case 'L':
-				return [-change, 0, 0]
-			case 'F':
-				return [0, 0, -change]
-			case 'B':
-				return [0, 0, change]
-		}
-	})
-
-	let maxY = Number.MIN_SAFE_INTEGER
-	for (const change of changes) {
-		maxY = Math.max(maxY, loc.y)
-		const xc = change[0];
-		const yc = change[1];
-		const dc = change[2];
-		//loc.x += xc;
-		//loc.y += yc;
-		//loc.depth += dc
-		for (let _ = 0; _ < Math.abs(xc); _++) {
-			loc.x += xc > 0 ? 1 : -1
-		}
-		for (let _ = 0; _ < Math.abs(yc); _++) {
-			loc.y += yc > 0 ? 1 : -1
-		}
-		for (let _ = 0; _ < Math.abs(dc); _++) {
-			loc.depth += dc > 0 ? 1 : -1
-		}
-		maxY = Math.max(maxY, loc.y)
-	}
-	maxY = Math.max(maxY, loc.y)
-
-	return maxY
-}
-function solveQuest2(notes: string) {
-	const changeses = notes.split('\n').map(l => l.split(',').map(thing => {
-		const dir = thing[0];
-		const change = +thing.slice(1)
-		switch (dir) {
-			case 'U':
-				return [0, change, 0]
+				return { x: 0, height: -change, depth: 0 }
 			case 'R':
-				return [change, 0, 0]
-			case 'D':
-				return [0, -change, 0]
+				return { x: change, height: 0, depth: 0 }
 			case 'L':
-				return [-change, 0, 0]
+				return { x: -change, height: 0, depth: 0 }
 			case 'F':
-				return [0, 0, -change]
+				return { x: 0, height: 0, depth: -change }
 			case 'B':
-				return [0, 0, change]
+				return { x: 0, height: 0, depth: change }
 		}
 	}))
+}
 
-	let visited = new Set()
+type Loc = {
+	x: number;
+	height: number;
+	depth: number
+}
 
-	for (const changes of changeses) {
-		const loc = { x: 0, y: 0, depth: 0 }
-		//let maxY = Number.MIN_SAFE_INTEGER
-		for (const change of changes) {
-			//			maxY = Math.max(maxY, loc.y)
-			visited.add(loc.x + '|' + loc.y + '|' + loc.depth)
-			const xc = change[0];
-			const yc = change[1];
-			const dc = change[2];
-			//loc.x += xc;
-			//loc.y += yc;
-			//loc.depth += dc
-			for (let _ = 0; _ < Math.abs(xc); _++) {
-				visited.add(loc.x + '|' + loc.y + '|' + loc.depth)
-				loc.x += Math.sign(xc)
-				visited.add(loc.x + '|' + loc.y + '|' + loc.depth)
+const locToKey = (loc: Loc) => loc.x + '|' + loc.height + '|' + loc.depth
+const keyToLoc = (key: string) => {
+	const [x, height, depth] = key.split('|').map(Number)
+	return { x, height, depth }
+}
+
+function solveQuest(notes: string) {
+	const growths = parseGrowths(notes)
+
+	let maxHeight = 0
+	const updateMaxY = (loc: Loc) => maxHeight = Math.max(maxHeight, loc.height)
+
+	growGrowths(growths, NOOP, updateMaxY)
+
+	return maxHeight
+}
+
+
+function growGrowths(growths: ReturnType<typeof parseGrowths>, onGrowthEnd: (loc: Loc) => void, ...onGrows: ((loc: Loc) => void)[]) {
+	for (const growth of growths) {
+		const loc = { x: 0, height: 0, depth: 0 }
+		onGrows.forEach(onGrow => onGrow(loc))
+		for (const change of growth) {
+			for (const changeKey in change) {
+				const changeAmount = change[changeKey]
+				const changeCount = Math.abs(changeAmount)
+				for (let _ = 0; _ < changeCount; _++) {
+					loc[changeKey as keyof Loc] += Math.sign(changeAmount)
+					onGrows.forEach(onGrow => onGrow(loc))
+				}
 			}
-			for (let _ = 0; _ < Math.abs(yc); _++) {
-				visited.add(loc.x + '|' + loc.y + '|' + loc.depth)
-				loc.y += Math.sign(yc)
-				visited.add(loc.x + '|' + loc.y + '|' + loc.depth)
-			}
-			for (let _ = 0; _ < Math.abs(dc); _++) {
-				visited.add(loc.x + '|' + loc.y + '|' + loc.depth)
-				loc.depth += Math.sign(dc)
-				visited.add(loc.x + '|' + loc.y + '|' + loc.depth)
-			}
-			visited.add(loc.x + '|' + loc.y + '|' + loc.depth)
-			//maxY = Math.max(maxY, loc.y)
 		}
-		//maxY = Math.max(maxY, loc.y)
+		onGrowthEnd(loc)
 	}
+}
+
+const NOOP = () => undefined
+
+function solveQuest2(notes: string) {
+	const growths = parseGrowths(notes)
+
+	const visited = new Set<string>()
+	const addLocToVisited = (loc: Loc) => visited.add(locToKey(loc))
+
+	growGrowths(growths, NOOP, addLocToVisited)
 
 	return visited.size - 1
 }
 
 
-function dijkstra(graph: Record<string, Record<string, number>>, start: string) {
+function dijkstra(graph: Record<string, string[]>, start: string) {
 	const times = {};
 	for (const node in graph) {
 		times[node] = Infinity;
@@ -122,134 +95,74 @@ function dijkstra(graph: Record<string, Record<string, number>>, start: string) 
 
 		unvisited.delete(node);
 
-		for (const neighbor in graph[node]) {
-			times[neighbor] = Math.min(times[neighbor], times[node] + graph[node][neighbor])
+		for (const neighbor of graph[node]) {
+			times[neighbor] = Math.min(times[neighbor], times[node] + 1)
 		}
 	}
 
 	return times;
 }
 
+const DIRECTIONS = [
+	[1, 0, 0],
+	[-1, 0, 0],
+	[0, 1, 0],
+	[0, -1, 0],
+	[0, 0, 1],
+	[0, 0, -1]
+] as const
+
 function solveQuest3(notes: string) {
-	const changeses = notes.split('\n').map(l => l.split(',').map(thing => {
-		const dir = thing[0];
-		const change = +thing.slice(1)
-		switch (dir) {
-			case 'U':
-				return [0, change, 0]
-			case 'R':
-				return [change, 0, 0]
-			case 'D':
-				return [0, -change, 0]
-			case 'L':
-				return [-change, 0, 0]
-			case 'F':
-				return [0, 0, -change]
-			case 'B':
-				return [0, 0, change]
-		}
-	}))
+	const growths = parseGrowths(notes)
 
 	const leaves = new Set<string>();
-	const mainSegmentYs = new Set<number>();
+	const addLeaf = (loc: Loc) => leaves.add(locToKey(loc))
 
-
-
-	//const world: Record<string, Record<string, Record<string, string>>> = {}
-	const been = new Set<string>()
-	// x -> y -> depth
-	for (const changes of changeses) {
-		const loc = { x: 0, y: 0, depth: 0 }
-		function addIfMainSegment() {
-			if (loc.x === 0 && loc.depth === 0) {
-				mainSegmentYs.add(loc.y)
-			}
-		}
-		for (const change of changes) {
-			been.add(loc.x + '|' + loc.y + '|' + loc.depth)
-			const xc = change[0];
-			const yc = change[1];
-			const dc = change[2];
-			addIfMainSegment()
-			for (let _ = 0; _ < Math.abs(xc); _++) {
-				loc.x += Math.sign(xc)
-				been.add(loc.x + '|' + loc.y + '|' + loc.depth)
-				addIfMainSegment()
-			}
-			for (let _ = 0; _ < Math.abs(yc); _++) {
-				loc.y += Math.sign(yc)
-				been.add(loc.x + '|' + loc.y + '|' + loc.depth)
-				addIfMainSegment()
-			}
-			for (let _ = 0; _ < Math.abs(dc); _++) {
-				loc.depth += Math.sign(dc)
-				been.add(loc.x + '|' + loc.y + '|' + loc.depth)
-				addIfMainSegment()
-			}
-			addIfMainSegment()
-		}
-		leaves.add(loc.x + '|' + loc.y + '|' + loc.depth)
-	}
-
-	const directions = [
-		[1, 0, 0],
-		[-1, 0, 0],
-		[0, 1, 0],
-		[0, -1, 0],
-		[0, 0, 1],
-		[0, 0, -1]
-	] as const
-
-	const graph = {};
-	for (const place of been) {
-		if (!(place in graph)) graph[place] = {}
-		const [x, y, depth] = place.split('|').map(Number)
-		for (const [xo, yo, doo] of directions) {
-			const [nx, ny, ndepth] = [x + xo, y + yo, depth + doo]
-			const key = [nx, ny, ndepth].join('|');
-			if (been.has(key)) {
-				//if (!(x in graph)) graph[x] = {}
-				//if (!(y in graph[x])) graph[x][y] = {};
-				//graph[x][y][depth] = key
-				graph[place][key] = 1
-			}
+	const trunkHeights = new Set<number>();
+	const trackMainTrunk = (loc: Loc) => {
+		if (loc.x === 0 && loc.depth === 0) {
+			trunkHeights.add(loc.height)
 		}
 	}
 
-	function manhattanDistance(point1, point2) {
-		let distance = 0;
+	const visited = new Set<string>()
+	const addLocToVisited = (loc: Loc) => visited.add(locToKey(loc))
 
-		for (let i = 0; i < point1.length; i++) {
-			distance += Math.abs(point1[i] - point2[i]);
+	growGrowths(growths, addLeaf, addLocToVisited, trackMainTrunk)
+
+
+	const graph: Record<string, string[]> = {};
+	for (const fromKey of visited) {
+		const fromLoc = keyToLoc(fromKey)
+
+		if (!(fromKey in graph)) graph[fromKey] = []
+
+		for (const [xc, hc, dc] of DIRECTIONS) {
+			const toKey = locToKey({ x: fromLoc.x + xc, height: fromLoc.height + hc, depth: fromLoc.depth + dc });
+			if (visited.has(toKey)) {
+				graph[fromKey].push(toKey)
+			}
 		}
-
-		return distance;
 	}
-
-	const leafDistances = {};
+	const distanceFromLeaves: Record<string, Record<string, number>> = {};
 	for (const leaf of leaves) {
-		leafDistances[leaf] = dijkstra(graph, leaf)
+		distanceFromLeaves[leaf] = dijkstra(graph, leaf)
 	}
 
-	function distanceBetween(trunk, leaf) {
-		return leafDistances[leaf.join('|')][trunk.join('|')]
-	}
 
-	let best = Number.MAX_SAFE_INTEGER;
-	for (const sy of mainSegmentYs) {
-		let totalDist = 0
-		for (const rawLeaf of leaves) {
-			const [x, y, depth] = rawLeaf.split('|').map(Number)
-			//totalDist += manhattanDistance([0, sy, 0], [x, y, depth])
-			totalDist += distanceBetween([0, sy, 0], [x, y, depth])
-			if (totalDist > best) break
+	let leastDistance = Number.MAX_SAFE_INTEGER;
+	for (const trunkHeight of trunkHeights) {
+		const trunkKey = locToKey({ x: 0, height: trunkHeight, depth: 0 })
+
+		let totalDistance = 0
+		for (const leaf of leaves) {
+			totalDistance += distanceFromLeaves[leaf][trunkKey]
+			if (totalDistance > leastDistance) break
 		}
-		if (totalDist < best) {
-			best = totalDist
-		}
+		leastDistance = Math.min(leastDistance, totalDistance)
 	}
 
-	return best
+	return leastDistance
 }
 
 describe('Part 1', () => {
