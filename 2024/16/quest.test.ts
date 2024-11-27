@@ -1,145 +1,127 @@
 import { describe, expect, test } from 'vitest'
 import fs from 'fs'
 
-function solveQuest(notes: string) {
+function parseMachine(notes: string) {
 	const [first, last] = notes.split('\n\n')
-	const numbers = first.split(',').map(Number);
+	const turns = first.split(',').map(Number);
 
-	const wheels = Array.from({ length: numbers.length }, () => []);
-	const faceIndexes = wheels.map((_, i) => i * 3 + i)
-	faceIndexes
+	const wheelFaces = Array.from({ length: turns.length }, () => [] as string[]);
+	const faceIndexes = wheelFaces.map((_, i) => i * 3 + i)
 	for (const line of last.split('\n')) {
-		for (const [w, f] of faceIndexes.entries()) {
+		for (const [wi, f] of faceIndexes.entries()) {
 			const face = line.slice(f, f + 3).trim()
 			if (face) {
-				wheels[w].push(line.slice(f, f + 3))
+				wheelFaces[wi].push(face)
 			}
 		}
 	}
 
-	let results = []
-	let wheelIndexes = wheels.map(() => 0)
-	for (let s = 0; s < 100; s++) {
-		wheelIndexes = wheelIndexes.map((wi, w) => wi + numbers[w])
-		results.push(wheelIndexes.map((wi, w) => wheels[w][wi % wheels[w].length]))
+	return { wheelFaces, turns }
+}
+
+function countCoins(result: string[]) {
+	let coins = 0
+
+	const counts: Record<string, number> = {};
+	for (const char of result.map(face => face[0] + face[2]).join('')) {
+		if ((counts[char] = (counts[char] ?? 0) + 1) >= 3) {
+			coins++
+		}
 	}
-	return results.at(-1).join(' ')
+
+	return coins
+}
+
+function positionsToWheelFaces(positions: number[], wheelFaces: string[][]) {
+	return positions.map((position, wi) => wheelFaces[wi][position])
+}
+
+function countPositionCoins(positions: number[], wheelFaces: string[][]) {
+	return countCoins(positionsToWheelFaces(positions, wheelFaces))
+}
+
+
+function turnWheelPositions(positions: number[], turns: number[], wheelFaces: string[][]) {
+	for (let p = 0; p < positions.length; p++) {
+		positions[p] = (positions[p] + turns[p]) % wheelFaces[p].length
+	}
+}
+
+
+function solveQuest(notes: string) {
+	const { wheelFaces, turns } = parseMachine(notes)
+
+	let positions = wheelFaces.map(() => 0)
+	for (let pull = 0; pull < 100; pull++) {
+		turnWheelPositions(positions, turns, wheelFaces)
+	}
+	return positionsToWheelFaces(positions, wheelFaces).join(' ')
 }
 
 function solveQuest2(notes: string, pulls: number) {
-	//const [first, last] = notes.split('\r\n\r\n')
-	const [first, last] = notes.split('\n\n')
-	const numbers = first.split(',').map(Number);
+	const { wheelFaces, turns } = parseMachine(notes)
 
-	const wheels = Array.from({ length: numbers.length }, () => []);
-	const faceIndexes = wheels.map((_, i) => i * 3 + i)
-	for (const line of last.split('\n')) {
-		for (const [w, f] of faceIndexes.entries()) {
-			const face = line.slice(f, f + 3).trim()
-			if (face) {
-				wheels[w].push(line.slice(f, f + 3))
-			}
+	const coins = []
+	const positionHistory = {}
+	let positions = wheelFaces.map(() => 0)
+	for (let pull = 0; pull < pulls; pull++) {
+		turnWheelPositions(positions, turns, wheelFaces)
+
+		const key = positions.join('|')
+		const cycleIndex = positionHistory[key]
+
+		if (cycleIndex === undefined) {
+			coins.push(countPositionCoins(positions, wheelFaces))
+			positionHistory[key] = pull
+			continue
 		}
+
+		let total = coins.reduce((a, b) => a + b, 0)
+
+		const cycleCoins = coins.slice(cycleIndex, cycleIndex + pull).reduce((a, b) => a + b, 0)
+		const cycleIncrement = pull - cycleIndex
+
+		let remaining = pulls - pull;
+		const cycleCount = Math.floor(remaining / cycleIncrement)
+		total += cycleCount * cycleCoins
+		pull += cycleCount * cycleIncrement
+
+		remaining = pulls - pull;
+		total += coins.slice(cycleIndex, cycleIndex + remaining).reduce((a, b) => a + b, 0)
+
+		return total
 	}
 
-	let ttl = 0
-	let coins = []
-	const indexResults = {}
-	let wheelIndexes = wheels.map(() => 0)
-	for (let s = 0; s < pulls; s++) {
-		wheelIndexes = wheelIndexes.map((wi, w) => (wi + numbers[w]) % wheels[w].length)
-		const key = wheelIndexes.join('|')
-		const cycleIndex = indexResults[key]
-		if (cycleIndex === undefined) {
-		}
-		if (cycleIndex === undefined) {
-			const result = wheelIndexes.map((wi, w) => wheels[w][wi])
-			const counts = {};
-			let ccoins = 0
-			for (const char of result.map(face => face[0] + face[2]).join('')) {
-				if ((counts[char] = (counts[char] ?? 0) + 1) >= 3) {
-					ccoins++
-				}
-			}
-			coins.push(ccoins)
-			ttl += ccoins
-			indexResults[key] = s
-		} else {
-			const increment = s - cycleIndex
-			let nextS = s + increment;
-			const ttlOfRange = coins.slice(cycleIndex, cycleIndex + s).reduce((a, b) => a + b, 0)
-			while (nextS < pulls) {
-				ttl += ttlOfRange
-				s = nextS
-				nextS += increment
-			}
-			const remainign = pulls - s;
-			let e = cycleIndex + remainign
-			ttl += coins.slice(cycleIndex, e).reduce((a, b) => a + b, 0)
-			s += remainign
-		}
-	}
-
-	return ttl
+	return coins.reduce((a, b) => a + b, 0)
 }
 
+
 function solveQuest3(notes: string, pulls: number) {
-	const [first, last] = notes.split('\n\n')
-	const numbers = first.split(',').map(Number);
+	const { wheelFaces, turns } = parseMachine(notes)
 
-	const wheels = Array.from({ length: numbers.length }, () => []);
-	const faceIndexes = wheels.map((_, i) => i * 3 + i)
-	for (const line of last.split('\n')) {
-		for (const [w, f] of faceIndexes.entries()) {
-			const face = line.slice(f, f + 3).trim()
-			if (face) {
-				wheels[w].push(line.slice(f, f + 3))
-			}
-		}
-	}
-
-
-	function countCoins(result: string[]) {
-		const counts = {};
-		let ccoins = 0
-		for (const char of result.map(face => face[0] + face[2]).join('')) {
-			if ((counts[char] = (counts[char] ?? 0) + 1) >= 3) {
-				ccoins++
-			}
-		}
-		return ccoins
-	}
-
-	const cache = {}
-	function recur(wheelIndexes, pull, goal) {
-		const key = [...wheelIndexes, pull, goal].join('|')
+	const cache: Record<string, number> = {}
+	function recur(positions: number[], pull: number, goal: 'min' | 'max') {
+		const key = [...positions, pull, goal].join('|')
 		if (key in cache) return cache[key]
 
-		wheelIndexes = wheelIndexes.map((wi, w) => (wi + numbers[w]) % wheels[w].length)
-		const backwardIndexes = wheelIndexes.map((wi, w) => {
-			wi--
-			if (wi < 0) wi = wheels[w].length - 1
-			return wi
-		})
-		const forwardIndexes = wheelIndexes.map((wi, w) => (wi + 1) % wheels[w].length)
-		let backwardCoins = countCoins(backwardIndexes.map((wi, w) => wheels[w][wi]))
-		let coins = countCoins(wheelIndexes.map((wi, w) => wheels[w][wi]))
-		let forwardCoins = countCoins(forwardIndexes.map((wi, w) => wheels[w][wi]))
+		turnWheelPositions(positions, turns, wheelFaces)
+		const backwardPositions = positions.map((position, wi) => (position + wheelFaces[wi].length - 1) % wheelFaces[wi].length)
+		const forwardPositions = positions.map((position, wi) => (position + 1) % wheelFaces[wi].length)
+
+		let backwardCoins = countPositionCoins(backwardPositions, wheelFaces)
+		let coins = countPositionCoins(positions, wheelFaces)
+		let forwardCoins = countPositionCoins(forwardPositions, wheelFaces)
 
 		if (pull !== pulls) {
-			backwardCoins += recur(backwardIndexes, pull + 1, goal)
-			coins += recur(wheelIndexes, pull + 1, goal)
-			forwardCoins += recur(forwardIndexes, pull + 1, goal)
+			backwardCoins += recur(backwardPositions, pull + 1, goal)
+			coins += recur(positions, pull + 1, goal)
+			forwardCoins += recur(forwardPositions, pull + 1, goal)
 		}
 
-		const result = Math[goal](backwardCoins, coins, forwardCoins)
-		cache[key] = result;
-		return result
+		return cache[key] = Math[goal](backwardCoins, coins, forwardCoins);
 	}
 
-	const min = recur(wheels.map(() => 0), 1, 'min')
-	const max = recur(wheels.map(() => 0), 1, 'max')
-	return [max, min].join(' ')
+	return [recur(wheelFaces.map(() => 0), 1, 'max'), recur(wheelFaces.map(() => 0), 1, 'min')].join(' ')
 }
 
 
