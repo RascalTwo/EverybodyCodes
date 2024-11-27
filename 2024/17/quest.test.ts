@@ -20,10 +20,8 @@ function minKey(key, mstSet, V) {
 // A utility function to print the 
 // constructed MST stored in parent[] 
 function printMST(parent: number[], graph: number[][]) {
-	//console.log("Edge   Weight");
 	const vs = []
 	for (let i = 1; i < graph.length; i++) {
-		//console.log(parent[i] + " - " + i + "   " + graph[i][parent[i]]);
 		vs.push(graph[i][parent[i]])
 	}
 	return vs
@@ -76,7 +74,9 @@ function primMST(graph: number[][]) {
 }
 
 
-function solveQuest(notes: string) {
+type Star = { id: number, r: number, c: number }
+
+const parseStars = (notes: string): Star[] => {
 	const world = notes.split('\n').map(l => [...l])
 	const stars = [];
 	for (let r = 0; r < world.length; r++) {
@@ -86,120 +86,55 @@ function solveQuest(notes: string) {
 			}
 		}
 	}
-
-	function distanceBetween(from, to) {
-		return Math.abs(from.r - to.r) + Math.abs(from.c - to.c)
-	}
-
-	const graph: Record<string, Record<string, number>> = {}
-	for (const from of stars) {
-		if (!(from.id in graph)) graph[from.id] = {}
-		const fromMap = graph[from.id]
-
-		for (const to of stars) {
-			if (from.id === to.id) continue
-			fromMap[to.id] = distanceBetween(from, to)
-		}
-	}
-
-	const adgGraph = [];
-	for (const from of stars) {
-		const arr = []
-		if (!(from.id in graph)) graph[from.id] = {}
-		const fromMap = graph[from.id]
-
-		for (const to of stars) {
-			arr.push(distanceBetween(from, to))
-		}
-		adgGraph.push(arr)
-	}
-
-	const vs = primMST(adgGraph)
-	return vs.reduce((a, b) => a + b, 0) + adgGraph.length
+	return stars
 }
 
+function distanceBetween(from: Star, to: Star) {
+	return Math.abs(from.r - to.r) + Math.abs(from.c - to.c)
+}
 
-function solveQuest3(notes: string) {
-	const world = notes.split('\n').map(l => [...l])
-	const stars = [];
-	for (let r = 0; r < world.length; r++) {
-		for (let c = 0; c < world[0].length; c++) {
-			if (world[r][c] === '*') {
-				stars.push({ id: stars.length + 1, r, c })
-			}
-		}
-	}
-
-	function distanceBetween(from, to) {
-		return Math.abs(from.r - to.r) + Math.abs(from.c - to.c)
-	}
-
-	const consts = []
+const getConstellations = (stars: Star[], constellationDistances: number) => {
+	const constellations = []
 	for (const from of stars) {
-		let existingConst = consts.find(c => c.stars.some(star => distanceBetween(from, star) < 6))
+		let existingConst = constellations.find(c => c.some(star => distanceBetween(from, star) < constellationDistances))
 		if (!existingConst) {
-			existingConst = {
-				stars: [],
-				size: 0,
-				graph: {},
-				adgGraph: []
-			}
-			consts.push(existingConst)
+			existingConst = []
+			constellations.push(existingConst)
 		}
-		existingConst.stars.push(from)
+		existingConst.push(from)
 	}
 
-	for (let c1 = consts.length - 1; c1 >= 1; c1--) {
+	for (let c1 = constellations.length - 1; c1 >= 1; c1--) {
 		for (let c2 = c1 - 1; c2 >= 0; c2--) {
 			if (c1 === c2) continue
-			// if any c1 stars are within 6 of any c2 starts, merge both
-			if (consts[c1].stars.some(c1s => consts[c2].stars.some(c2s => distanceBetween(c1s, c2s) < 6))) {
-				consts[c2].stars.push(...consts[c1].stars)
-				consts.splice(c1, 1)
+			if (constellations[c1].some(c1s => constellations[c2].some(c2s => distanceBetween(c1s, c2s) < constellationDistances))) {
+				constellations[c2].push(...constellations[c1])
+				constellations.splice(c1, 1)
 				break
 			}
 		}
 	}
 
-	for (const constal of consts) {
-		const graph: Record<string, Record<string, number>> = {}
-		for (const from of constal.stars) {
-			if (!(from.id in graph)) graph[from.id] = {}
-			const fromMap = graph[from.id]
+	return constellations
+}
 
-			for (const to of constal.stars) {
-				if (from.id === to.id) continue
-				fromMap[to.id] = distanceBetween(from, to)
-			}
+const getConstellationSizes = (notes: string, constellationDistances: number = 6) =>
+	getConstellations(parseStars(notes), constellationDistances).map(constellation => {
+		const adgGraph: number[][] = [];
+		for (const from of constellation) {
+			adgGraph.push(constellation.map(to => distanceBetween(from, to)))
 		}
 
-		const adgGraph = [];
-		for (const from of constal.stars) {
-			const arr = []
-			if (!(from.id in graph)) graph[from.id] = {}
+		return primMST(adgGraph).reduce((a, b) => a + b, 0) + adgGraph.length
+	}).sort((a, b) => b - a)
 
-			for (const to of constal.stars) {
-				arr.push(distanceBetween(from, to))
-			}
-			adgGraph.push(arr)
-		}
 
-		constal.graph = graph
-		constal.adgGraph = adgGraph
-		const vs = primMST(adgGraph)
-		const size = vs.reduce((a, b) => a + b, 0) + adgGraph.length
-		constal.size = size
-	}
+function solveQuest(notes: string) {
+	return getConstellationSizes(notes, Number.MAX_SAFE_INTEGER)[0]
+}
 
-	consts.sort((a, b) => b.size - a.size)
-	for (const [c, constsal] of consts.entries()) {
-		for (const s of constsal.stars) {
-			world[s.r][s.c] = String.fromCharCode('A'.charCodeAt(0) + c)
-			if (world[s.r][s.c] >= 'Z') world[s.r][s.c] = '*'
-		}
-	}
-	//require('fs').writeFileSync('map.txt', world.map(l => l.join('')).join('\n'))
-	return consts.slice(0, 3).reduce((a, b) => a * b.size, 1)
+function solveQuest3(notes: string) {
+	return getConstellationSizes(notes, 6).slice(0, 3).reduce((a, b) => a * b, 1)
 }
 
 describe('Part 1', () => {
